@@ -1,6 +1,6 @@
 // Free sailing on the Tagus: switch between the Falua and the Muleta.
 import { setupApp } from '../../src/ui/app';
-import { BOATS, GustyWind, SailboatSim, defaultControls, deg2rad, groupsInMode, type BoatSpec } from '../../src/physics';
+import { BOATS, GustyWind, NO_CURRENT, SailboatSim, defaultControls, deg2rad, groupsInMode, type BoatSpec, type GridCurrent } from '../../src/physics';
 import { BOAT_VISUALS, LITE_URLS } from '../../src/engine/boatVisuals';
 import { TrashView } from '../../src/engine/trashView';
 import { WhaleView } from '../../src/engine/whaleView';
@@ -11,7 +11,7 @@ import { CAMERA_VIEWS, CameraRig } from '../../src/engine/cameraRig';
 import { ForceArrows } from '../../src/engine/forceArrows';
 import { Input } from '../../src/engine/input';
 import { TouchControls, isTouchDevice } from '../../src/engine/touchControls';
-import { createMapView, loadMapMask, type MapView } from '../../src/engine/mapView';
+import { createMapView, loadCurrent, loadMapMask, type MapView } from '../../src/engine/mapView';
 import { getArea, toMapXY } from '../../src/world/area';
 import { getEdition } from '../../src/world/edition';
 
@@ -80,6 +80,9 @@ let wildlife: Wildlife | undefined;
 let trafficOn = true;
 let start = { x: 0, y: 0 };
 let aground = false;
+/** The tidal stream at the height of the ebb (areas with a stream map), and how it runs now. */
+let current: GridCurrent | undefined;
+let tide: 'slack' | 'ebb' | 'flood' = 'slack';
 /** The anchor (where it lies and the cable out), when down. */
 let anchorDown: { x: number; y: number; rode: number } | null = null;
 let destinations: Destination[] = [];
@@ -148,6 +151,14 @@ const hud = new SailingHud(document.getElementById('hud')!, BOATS, {
   onCameraHeight: (h) => cameraRig.setElevation(h),
   onTimeScale: (k) => (timeScale = k),
   onTimeOfDay: (id) => setTimeOfDay(id as TimeOfDay),
+  onTide: (id) => {
+    mask.lowTide = id === 'low';
+    mapView?.setLowTide(mask.lowTide);
+  },
+  onCurrent: (id) => {
+    tide = id as typeof tide;
+    if (current) current.factor = tide === 'ebb' ? 1 : tide === 'flood' ? -1 : 0;
+  },
   onAnchor: () => toggleAnchor(),
   onFish: () => {
     // Between sailing and the mode with the net out.
@@ -755,8 +766,12 @@ function collide(): void {
 }
 
 async function main(): Promise<void> {
-  const [first, map] = await Promise.all([loadView(spec.id), loadMapMask()]);
+  const [first, map, stream] = await Promise.all([loadView(spec.id), loadMapMask(), loadCurrent()]);
   mask = map.mask;
+  current = stream;
+  if (current) current.factor = 0; // slack water until chosen
+  hud.setCurrentAvailable(!!current);
+  hud.setTideAvailable(mask.hasFlats);
   terrain = map.terrain;
   await document.fonts.ready; // labels and minimap are drawn once, with the period font
   mapView = createMapView(scene, mask, skyColor, sunDirection, fogDensity, AREA.ports, map.terrain);
@@ -848,6 +863,7 @@ async function main(): Promise<void> {
       // Moved far from the anchor (a new start): it cannot still be down.
       if (anchorDown && Math.hypot(sim.state.x - anchorDown.x, sim.state.y - anchorDown.y) > anchorDown.rode + 200) weighAnchor();
       sim.controls.anchor = anchorDown;
+      sim.current = current ?? NO_CURRENT;
       const before = sim.state.time;
       stepWithLand(dt * timeScale);
       /** Game seconds this frame actually advanced (slow frames are capped). */
@@ -1118,7 +1134,7 @@ async function main(): Promise<void> {
       for (const id of found) narrator.report(id, time);
     }
     hud.caption(narrator && !paused && !missionDone ? narrator.update(time, moments?.calm() ?? true) : null);
-    hud.update(s, sim.controls, sim.report, w, paused, aground, nav);
+    hud.update(s, sim.controls, sim.report, w, paused, aground, nav, sim.current.at(s.x, s.y));
     scene.render();
   });
 }

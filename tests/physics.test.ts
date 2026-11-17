@@ -14,6 +14,8 @@ import {
   MULETA,
   SailboatSim,
   SteadyWind,
+  SteadyCurrent,
+  GridCurrent,
   deg2rad,
   foilForce,
   groupsInMode,
@@ -262,4 +264,41 @@ describe('the anchor', () => {
       expect(Math.hypot(sim.state.u, sim.state.v)).toBeLessThan(0.6);
     });
   }
+});
+
+describe('currents', () => {
+  it('a boat in still air drifts with the stream', () => {
+    const sim = new SailboatSim(FALUA, new SteadyWind(0, 0), { heading: 0 });
+    sim.current = new SteadyCurrent(1, 0); // 1 m/s towards the east
+    sim.stepFixed(60, 1 / 60);
+    // Carried 60 m east, less a little: over the water it feels 1 m/s of air from the east.
+    expect(sim.state.x).toBeGreaterThan(55);
+    expect(sim.state.x).toBeLessThan(60);
+    expect(Math.abs(sim.state.y)).toBeLessThan(15); // its sails catch that air a little
+    // It moves with the water, not through it.
+    expect(Math.hypot(sim.state.u, sim.state.v)).toBeLessThan(0.4);
+  });
+
+  it('a stream running with the wind takes some of the wind out of the sails', () => {
+    const run = (east: number) => {
+      // Wind from the west (blowing east), boat on a beam reach heading north.
+      const sim = new SailboatSim(FALUA, new SteadyWind(270, WIND), { heading: 0, u: 2 });
+      sim.current = new SteadyCurrent(east, 0);
+      sim.lockHeading = true;
+      sim.stepFixed(90, 1 / 60);
+      return sim.report.apparentWindSpeed;
+    };
+    expect(run(1.5)).toBeLessThan(run(0));
+  });
+
+  it('a grid stream is interpolated, reversed on the flood and still at slack water', () => {
+    const meta = { cellSize: 100, width: 3, height: 3, northWest: { x: 0, y: 300 } };
+    const g = new GridCurrent(meta, new Float32Array(9).fill(2), new Float32Array(9).fill(-1));
+    expect(g.at(150, 150)).toEqual({ east: 2, north: -1 });
+    g.factor = -1;
+    expect(g.at(150, 150)).toEqual({ east: -2, north: 1 });
+    g.factor = 0;
+    expect(g.at(150, 150)).toEqual({ east: 0, north: 0 });
+    expect(new GridCurrent(meta, new Float32Array(9), new Float32Array(9)).at(-500, 0)).toEqual({ east: 0, north: 0 });
+  });
 });

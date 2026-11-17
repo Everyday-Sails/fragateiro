@@ -215,7 +215,18 @@ node scripts/fetch-map.mjs --area arcachon
 npm install --no-save geotiff@3.0.5 && node scripts/fetch-heights.mjs --area arcachon
 ```
 
-(Behind a proxy, set `NODE_USE_ENV_PROXY=1`.) Then add the area to `src/world/area.ts`,
+(Behind a proxy, set `NODE_USE_ENV_PROXY=1`.)
+
+**Tides and currents** (the Tagus; settings panel). The tidal stream is ebb, flood or slack:
+`scripts/tide-currents.mjs` works out its pattern from the water map (the whole estuary
+emptying through the river mouth, with a guessed depth: a deep channel from the bar to
+Barreiro, a shallow inner bay), scaled to 3 knots under the Ponte 25 de Abril at the height of
+the ebb, and writes `tagus-current.png`. The tide is high or low: at low tide the flats that
+OpenStreetMap maps as tidal flats, mud or shoals (`scripts/fetch-flats.mjs`, or the map
+workflow with *Only fetch the flats*; `<area>-flats.png`) dry and show as mud, and a boat runs
+aground on them.
+
+Then add the area to `src/world/area.ts`,
 `src/engine/mapView.ts` and its missions. Map data © OpenStreetMap contributors, ODbL.
 Heights: Copernicus GLO-30 DEM, © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH
 2014-2018, provided under COPERNICUS by the European Union and ESA.

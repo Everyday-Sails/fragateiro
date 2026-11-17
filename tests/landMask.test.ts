@@ -72,3 +72,20 @@ describe('destinations', () => {
     expect(Math.sin(d.heading)).toBeLessThan(0); // bow pointing west, to open water
   });
 });
+
+describe('tidal flats', () => {
+  it('dry at low tide and are water again at high tide', () => {
+    const meta: MapMeta = { cellSize: 100, width: 10, height: 10, northWest: { x: -500, y: 500 }, origin: { lat: 0, lon: 0 }, places: [] };
+    const water = new Uint8Array(100).fill(255);
+    const flats = new Uint8Array(100);
+    for (let r = 0; r < 10; r++) for (let c = 7; c < 10; c++) flats[r * 10 + c] = 255; // the eastern strip
+    const mask = new LandMask(meta, water, flats);
+    expect(mask.hasFlats).toBe(true);
+    expect(mask.isWater(350, 0)).toBe(true);
+    mask.lowTide = true;
+    expect(mask.isWater(350, 0)).toBe(false);
+    expect(mask.isWater(-300, 0)).toBe(true);
+    mask.lowTide = false;
+    expect(mask.isWater(350, 0)).toBe(true);
+  });
+});

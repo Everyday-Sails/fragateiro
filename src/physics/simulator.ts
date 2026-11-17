@@ -14,6 +14,7 @@
 
 import { foilForce, hydrofoilCurve, sailCurve, type CoefficientCurve } from './foil';
 import type { BoatSpec, BoatState, Controls, ForceReport, ModeSpec, PointForce, SailReport } from './types';
+import { NO_CURRENT, type CurrentField } from './current';
 import { SteadyWind, deg2rad, rad2deg, type WindField } from './wind';
 
 export const RHO_AIR = 1.204;
@@ -81,6 +82,8 @@ export class SailboatSim {
   report: ForceReport;
   /** Keep the heading fixed (used to compute speed polars). */
   lockHeading = false;
+  /** The tidal stream: it carries the boat over the ground. */
+  current: CurrentField = NO_CURRENT;
 
   private readonly sailCurves = new Map<string, CoefficientCurve>();
   private readonly keelCurve: CoefficientCurve;
@@ -141,9 +144,7 @@ export class SailboatSim {
    */
   bestSheets(): Record<string, number> {
     const s = this.state;
-    const wind = this.wind.at(s.time, s.x, s.y);
-    const we = -wind.speed * Math.sin(wind.from);
-    const wn = -wind.speed * Math.cos(wind.from);
+    const [we, wn] = this.airOverWater();
     const wf = we * Math.sin(s.heading) + wn * Math.cos(s.heading);
     const ws = we * Math.cos(s.heading) - wn * Math.sin(s.heading);
     const out: Record<string, number> = {};
@@ -183,6 +184,17 @@ export class SailboatSim {
     return out;
   }
 
+  /**
+   * The wind's velocity (where it blows TO) relative to the water at the boat, east and
+   * north, m/s: the wind over the ground less the current.
+   */
+  private airOverWater(): [number, number] {
+    const s = this.state;
+    const wind = this.wind.at(s.time, s.x, s.y);
+    const c = this.current.at(s.x, s.y);
+    return [-wind.speed * Math.sin(wind.from) - c.east, -wind.speed * Math.cos(wind.from) - c.north];
+  }
+
   /** Same as step() but with a custom fixed step (faster, used for offline polars). */
   stepFixed(dt: number, h: number): void {
     for (let t = 0; t < dt - 1e-9; t += h) this.integrate(Math.min(h, dt - t));
@@ -194,12 +206,11 @@ export class SailboatSim {
     const mode = this.mode;
     const c = this.controls;
 
-    const wind = this.wind.at(s.time, s.x, s.y);
     const sinH = Math.sin(s.heading);
     const cosH = Math.cos(s.heading);
-    // Air velocity (where the wind blows TO), world frame, then boat frame.
-    const we = -wind.speed * Math.sin(wind.from);
-    const wn = -wind.speed * Math.cos(wind.from);
+    // Air velocity over the water (where the wind blows TO), world frame, then boat frame.
+    const [we, wn] = this.airOverWater();
+    const stream = this.current.at(s.x, s.y);
     const wf = we * sinH + wn * cosH;
     const ws = we * cosH - wn * sinH;
 
@@ -390,8 +401,9 @@ export class SailboatSim {
     // Easy level: the boat goes where it points (the hull still works as usual, so speeds are
     // unchanged; only the sideways slip is left out of the track).
     const vTrack = c.noDrift ? 0 : s.v;
-    s.x += (s.u * sh + vTrack * ch) * h;
-    s.y += (s.u * ch - vTrack * sh) * h;
+    // The current carries the boat over the ground.
+    s.x += (s.u * sh + vTrack * ch + stream.east) * h;
+    s.y += (s.u * ch - vTrack * sh + stream.north) * h;
     s.time += h;
 
     // --- Report (for the HUD, force arrows and tests) -----------------------------
