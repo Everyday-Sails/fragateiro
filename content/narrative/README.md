@@ -12,6 +12,13 @@ A mini-game is narrated when `from-tool/lines/<its id>.json` exists. The narrato
 mission (`games/sailing/main.ts`); the closing words, the curiosities and the sources are shown
 on the result panel at the end of the mission.
 
+## Fixed point for evaluation
+
+The tag `prototype-with-minigames` (commit `97b71ab`) is the game the narrative tool is evaluated
+against: the museum's drills and mini-games, the narration with its replies and quiet moments,
+and these line banks. Evaluations name this tag, so later changes to the game do not move the
+ground under them; a new evaluation point gets a new tag.
+
 ## Who owns what
 
 | Path | Written by | Read by | What it is |
