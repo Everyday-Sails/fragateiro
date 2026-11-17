@@ -238,3 +238,28 @@ describe('architecture', () => {
     for (const f of files) expect(readFileSync(f, 'utf8')).not.toMatch(/@babylonjs|document\.|window\./);
   });
 });
+
+describe('the anchor', () => {
+  for (const spec of [FALUA, FRAGATA, CANOA]) {
+    it(`${spec.id}: at anchor, the boat stays within its cable and lies head to wind`, () => {
+      // Wind from the north; the boat starts heading east at 2 m/s, sails eased right out.
+      const sim = new SailboatSim(spec, new SteadyWind(0, 8), { heading: deg2rad(90), u: 2 });
+      for (const g of groupsInMode(spec, sim.controls.mode)) sim.controls.sheets[g] = 1;
+      const bow = spec.length / 2;
+      const anchor = { x: bow, y: 0, rode: 2 * spec.length };
+      sim.controls.anchor = anchor;
+      let worst = 0;
+      for (let t = 0; t < 300; t++) {
+        sim.stepFixed(1, 1 / 60);
+        const s = sim.state;
+        const d = Math.hypot(s.x + Math.sin(s.heading) * bow - anchor.x, s.y + Math.cos(s.heading) * bow - anchor.y);
+        if (t > 30) worst = Math.max(worst, d);
+      }
+      expect(worst).toBeLessThan(anchor.rode + 4);
+      // Downwind of the anchor (south of it), the bow towards it, within about 60 degrees.
+      expect(sim.state.y).toBeLessThan(0);
+      expect(Math.abs(wrapPi(sim.state.heading))).toBeLessThan(deg2rad(60));
+      expect(Math.hypot(sim.state.u, sim.state.v)).toBeLessThan(0.6);
+    });
+  }
+});

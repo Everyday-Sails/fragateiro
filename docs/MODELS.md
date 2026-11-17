@@ -33,6 +33,21 @@ npx @gltf-transform/cli@4.5.1 prune catraio-split.glb src/assets/models/catraio.
 
 The Fragata's bow points to +x (`bowPositiveX: true` in `boatVisuals.ts`).
 
+Parts of a mesh can also be moved into a node of their own (same material and textures) with
+`scripts/split-part.mjs`, choosing the triangles by where they are (model frame, model units):
+
+```bash
+# The Canoa's deck and transom bits that the cut had put in the lateen sail
+node scripts/split-part.mjs canoa.glb canoa.glb Vela Vela_deck "y < 1.3"
+# The Fragata's hanging anchor and its chain over the bow, hidden while the anchor is down
+node scripts/split-part.mjs fragata.glb fragata.glb correntes.002 Ancora "x > 890 && y < 268"
+```
+
+### The anchor
+
+The anchor (L) is a chain hanging from `anchor.hawse` (in `boatVisuals.ts`) into the water;
+`anchor.stowed` names nodes hidden while it is down (the Fragata's hanging anchor).
+
 ## Slimming a model
 
 ```bash

@@ -93,6 +93,7 @@ hud.close = Fermer
 tool.fish = Pêcher : mettre le filet à l’eau ou le relever
 tool.reef = Prendre un ris
 tool.anchor = Mouiller l’ancre
+tool.weigh = Lever l’ancre
 tool.soon = bientôt
 hud.landscape = Tournez votre téléphone : le jeu est plus confortable à l’horizontale.
 hud.sheetsKeys = W/S ou ↑/↓

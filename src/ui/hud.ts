@@ -28,6 +28,8 @@ export interface HudCallbacks {
   onNarration(mode: string): void;
   /** Toggle the fishing mode (boats with a net: the Muleta). */
   onFish(): void;
+  /** Drop the anchor or weigh it. */
+  onAnchor(): void;
 }
 
 export interface Navigation {
@@ -101,6 +103,7 @@ export class SailingHud {
   private readonly sheetAuto = el('span', 'sheet-auto');
   private groups: string[] = [];
   private fishBtn!: HTMLButtonElement;
+  private anchorBtn!: HTMLButtonElement;
   private readonly rudderBar = el('div', 'rudder-bar');
   private readonly rudderNeedle = el('div', 'rudder-needle');
   private readonly warning = el('div', 'warning');
@@ -209,7 +212,7 @@ export class SailingHud {
     const rudderLabel = el('span', 'helm-label', t('hud.rudder'));
     rudderLabel.title = t('hud.rudderKeys');
     helm.append(sheetsLabel, this.sheetAll, this.sheetAuto, el('span', 'helm-divider'), rudderLabel, this.rudderLeft, this.rudderBar, this.rudderRight);
-    // Small commands by the helm: fishing (boats with a net), reefing and the anchor (coming).
+    // Small commands by the helm: fishing (boats with a net), reefing (coming) and the anchor.
     const tools = el('div', 'helm-tools');
     const tool = (cls: string, svg: string, title: string) => {
       const b = el('button', `tool ${cls}`, `<svg viewBox="0 0 24 24" width="20" height="20">${svg}</svg>`);
@@ -224,7 +227,11 @@ export class SailingHud {
       cb.onFish();
     };
     tool('reef', '<path d="M7 3v18M7 4l11 15H7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M7 13h6.5M7 16h8.7" stroke="currentColor" stroke-width="1.6" stroke-dasharray="1.6 1.4"/>', `${t('tool.reef')} · ${t('tool.soon')}`).disabled = true;
-    tool('anchor', '<circle cx="12" cy="5" r="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v14M8 11h8M4.5 14.5C5.5 18.5 8.5 21 12 21s6.5-2.5 7.5-6.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>', `${t('tool.anchor')} · ${t('tool.soon')}`).disabled = true;
+    this.anchorBtn = tool('anchor', '<circle cx="12" cy="5" r="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v14M8 11h8M4.5 14.5C5.5 18.5 8.5 21 12 21s6.5-2.5 7.5-6.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>', `${t('tool.anchor')} (L)`);
+    this.anchorBtn.onclick = () => {
+      this.anchorBtn.blur();
+      cb.onAnchor();
+    };
     helm.append(tools);
 
     // --- Bottom right: wind and view options
@@ -440,6 +447,12 @@ export class SailingHud {
   setTimeScale(k: number): void {
     this.timeScale = k;
     this.timeScaleSelect.value = String(k);
+  }
+
+  /** Light the anchor button while the anchor is down. */
+  setAnchor(on: boolean): void {
+    this.anchorBtn.classList.toggle('active', on);
+    this.anchorBtn.title = `${t(on ? 'tool.weigh' : 'tool.anchor')} (L)`;
   }
 
   setSound(on: boolean): void {

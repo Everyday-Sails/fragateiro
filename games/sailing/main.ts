@@ -80,6 +80,8 @@ let wildlife: Wildlife | undefined;
 let trafficOn = true;
 let start = { x: 0, y: 0 };
 let aground = false;
+/** The anchor (where it lies and the cable out), when down. */
+let anchorDown: { x: number; y: number; rode: number } | null = null;
 let destinations: Destination[] = [];
 let nextDestination = 0;
 /** Simulated seconds per real second: speeds stay realistic, the trip goes faster. */
@@ -146,6 +148,7 @@ const hud = new SailingHud(document.getElementById('hud')!, BOATS, {
   onCameraHeight: (h) => cameraRig.setElevation(h),
   onTimeScale: (k) => (timeScale = k),
   onTimeOfDay: (id) => setTimeOfDay(id as TimeOfDay),
+  onAnchor: () => toggleAnchor(),
   onFish: () => {
     // Between sailing and the mode with the net out.
     const net = spec.modes.find((m) => m.net);
@@ -245,7 +248,28 @@ function cycleMode(): void {
   setMode(spec.modes[(i + 1) % spec.modes.length].id);
 }
 
+/** Cable let out: five times the depth of the river's usual anchorages (about 5 m), m. */
+const ANCHOR_RODE = 25;
+
+/** Drop the anchor where the bow is, or weigh it. */
+function toggleAnchor(): void {
+  if (anchorDown) {
+    weighAnchor();
+    return;
+  }
+  const s = sim.state;
+  const bow = spec.length / 2;
+  anchorDown = { x: s.x + Math.sin(s.heading) * bow, y: s.y + Math.cos(s.heading) * bow, rode: ANCHOR_RODE };
+  hud.setAnchor(true);
+}
+
+function weighAnchor(): void {
+  anchorDown = null;
+  hud.setAnchor(false);
+}
+
 function restart(): void {
+  weighAnchor();
   sim = new SailboatSim(spec, wind, { ...start, heading: START_HEADING });
   aground = false;
   hud.setBoat(spec, sim.controls);
@@ -253,6 +277,7 @@ function restart(): void {
 
 /** Move the boat (stopped) to a town's mooring, bow towards open water. */
 function teleport(d: Destination): void {
+  weighAnchor();
   const t = sim.state.time;
   const heading = sailableHeading(mask, d.x, d.y, d.heading, wind.at(t, d.x, d.y).from, spec.length);
   sim = new SailboatSim(spec, wind, { x: d.x, y: d.y, heading, time: t });
@@ -284,6 +309,7 @@ function stepWithLand(dt: number): void {
 }
 
 input.onPress('KeyM', cycleMode);
+input.onPress('KeyL', () => toggleAnchor());
 input.onPress('KeyB', () => {
   if (requiredBoat) return;
   const i = BOATS.findIndex((b) => b.id === wanted);
@@ -397,6 +423,8 @@ function readBest(id: string, l: Level): number | null {
 async function startMission(m: Mission, l: Level): Promise<void> {
   menu.hide();
   level = l;
+  // Each mission starts with the anchor up.
+  weighAnchor();
   try {
     localStorage.setItem('fragateiro.level', l);
   } catch {
@@ -594,6 +622,7 @@ function openStretch(from: Destination, want: number): { s0: { x: number; y: num
 function setOff(p: { x: number; y: number }, windFrom: number, heading: number, u: number): void {
   wind.fromDeg = ((((windFrom * 180) / Math.PI) % 360) + 360) % 360;
   hud.setWindFrom(wind.fromDeg);
+  weighAnchor();
   sim = new SailboatSim(spec, wind, { x: p.x, y: p.y, heading, u, time: sim.state.time });
   sim.controls.mode = spec.modes[0].id;
   aground = false;
@@ -816,6 +845,9 @@ async function main(): Promise<void> {
       applyInput(dt);
       sim.controls.balanced = level !== 'hard';
       sim.controls.noDrift = level === 'easy';
+      // Moved far from the anchor (a new start): it cannot still be down.
+      if (anchorDown && Math.hypot(sim.state.x - anchorDown.x, sim.state.y - anchorDown.y) > anchorDown.rode + 200) weighAnchor();
+      sim.controls.anchor = anchorDown;
       const before = sim.state.time;
       stepWithLand(dt * timeScale);
       /** Game seconds this frame actually advanced (slow frames are capped). */
@@ -889,6 +921,7 @@ async function main(): Promise<void> {
     }
     const s = sim.state;
     const w = wind.at(s.time, s.x, s.y);
+    view.setAnchor(anchorDown);
     view.update(s, sim.report, sim.controls.rudder, time, dt);
     arrows.update(view.root, sim.report, w, s.heading, 12);
     netView.update(view.root, spec.net, !!sim.mode.net, s, sim.report.trueWindAngleDeg >= 0, time);

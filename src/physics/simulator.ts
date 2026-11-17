@@ -40,6 +40,12 @@ const STERNWAY_TIME = 15;
 const BALANCED_RUDDER_FLOW = 1.5;
 /** Extra yaw damping with balanced sails, 1/s. */
 const BALANCED_YAW_DAMPING = 0.6;
+/**
+ * The anchor cable, once taut: its stiffness per kg of boat (N/m per kg; the boat surges on it
+ * with a period of about 8 s, the cable's sag acting as a spring), and its damping ratio.
+ */
+const ANCHOR_STIFFNESS = 0.6;
+const ANCHOR_DAMPING = 0.8;
 
 const ZERO_FORCE: PointForce = { fx: 0, fy: 0, x: 0, y: 0 };
 
@@ -333,6 +339,39 @@ export class SailboatSim {
       }
     }
 
+    // --- Anchor: the cable pulls the bow towards the anchor once it is taut ------------
+    let anchorForce: PointForce | undefined;
+    if (c.anchor) {
+      const xb = spec.length / 2;
+      // Bow position and velocity, world frame (east, north).
+      const bx = s.x + xb * sinH;
+      const by = s.y + xb * cosH;
+      const vb = s.v + s.r * xb;
+      const ve = s.u * sinH + vb * cosH;
+      const vn = s.u * cosH - vb * sinH;
+      const de = c.anchor.x - bx;
+      const dn = c.anchor.y - by;
+      const d = Math.hypot(de, dn);
+      let fx = 0;
+      let fy = 0;
+      if (d > c.anchor.rode && d > 1e-6) {
+        const ue = de / d;
+        const un = dn / d;
+        const k = ANCHOR_STIFFNESS * spec.mass;
+        const damp = 2 * ANCHOR_DAMPING * Math.sqrt(k * this.massU);
+        // Moving away from the anchor (negative closing speed) is damped; a cable never pushes.
+        const tension = Math.max(0, k * (d - c.anchor.rode) - damp * (ve * ue + vn * un));
+        const fe = tension * ue;
+        const fn = tension * un;
+        fx = fe * sinH + fn * cosH;
+        fy = fe * cosH - fn * sinH;
+        X += fx;
+        Y += fy;
+        N += xb * fy;
+      }
+      anchorForce = { fx, fy, x: xb, y: 0 };
+    }
+
     // --- Integrate (semi-implicit Euler) ----------------------------------------------
     const du = (X + this.massV * s.v * s.r) / this.massU;
     const dv = (Y - this.massU * s.u * s.r) / this.massV;
@@ -369,6 +408,7 @@ export class SailboatSim {
       apparentWindAngleDeg: rad2deg(Math.atan2(-awy, -awx)),
       trueWindAngleDeg: rad2deg(Math.atan2(-ws, -wf)),
       heelMoment,
+      anchor: anchorForce,
     };
   }
 

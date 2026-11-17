@@ -93,6 +93,7 @@ hud.close = Close
 tool.fish = Fish: put the net out or take it in
 tool.reef = Reef the sails
 tool.anchor = Drop anchor
+tool.weigh = Weigh anchor
 tool.soon = coming soon
 hud.landscape = Turn your phone: the game is better sideways.
 hud.sheetsKeys = W/S or ↑/↓
