@@ -26,7 +26,7 @@ own GitHub Pages, as before.
 ## One-time setup (an organization owner or admin)
 
 1. **Create the site repository.** On GitHub: *New repository*, owner
-   `TagusNavyVirtualMuseum`, name for example `fragateiro-site`, **Public**, empty.
+   `Everyday-Sails`, name for example `fragateiro-site`, **Public**, empty.
 
 2. **Let this repository write to it.** Choose one:
 
@@ -44,21 +44,21 @@ own GitHub Pages, as before.
 
    - **Or a token (no command line, but it expires).** Your profile → *Settings* → *Developer
      settings* → *Fine-grained tokens* → *Generate new token*: resource owner
-     `TagusNavyVirtualMuseum`, only the repository `fragateiro-site`, permission
+     `Everyday-Sails`, only the repository `fragateiro-site`, permission
      **Contents: Read and write**. In **fragateiro** → *Settings* → *Secrets and variables* →
      *Actions* → *New repository secret*: name `SITE_TOKEN`, value the token. Renew it before
      it expires.
 
 3. **Tell the workflow where to publish.** In **fragateiro** → *Settings* → *Secrets and
    variables* → *Actions* → *Variables* tab → *New repository variable*: name `SITE_REPO`,
-   value `TagusNavyVirtualMuseum/fragateiro-site`.
+   value `Everyday-Sails/fragateiro-site`.
 
 4. **Publish once.** In **fragateiro** → *Actions* → *Publish the game* → *Run workflow*. When
    it is green, `fragateiro-site` has a `gh-pages` branch with the built game.
 
 5. **Turn on its web site.** In **fragateiro-site** → *Settings* → *Pages* → *Source*: *Deploy
    from a branch*, branch `gh-pages`, folder `/ (root)`, save. A minute later the game is at
-   `https://tagusnavyvirtualmuseum.github.io/fragateiro-site/`.
+   `https://everyday-sails.github.io/fragateiro-site/`.
 
 6. **Close the old site and the code.** In **fragateiro** → *Settings* → *Pages*: unpublish
    the site. Then *Settings* → *General* → *Danger Zone* → *Change repository visibility* →
@@ -66,10 +66,10 @@ own GitHub Pages, as before.
 
 ### Keeping the old address
 
-To keep `https://tagusnavyvirtualmuseum.github.io/fragateiro/`, swap the names: first rename
+To keep `https://everyday-sails.github.io/fragateiro/`, swap the names: first rename
 this repository (for example to `fragateiro-code`, *Settings* → *General*), then create the
 public site repository with the name `fragateiro` in step 1, and use
-`TagusNavyVirtualMuseum/fragateiro` as `SITE_REPO` in step 3. Old links to the game keep
+`Everyday-Sails/fragateiro` as `SITE_REPO` in step 3. Old links to the game keep
 working; clones of the code follow the rename automatically.
 
 ## The private test site (Cloudflare Pages and Cloudflare Access, free)

@@ -65,7 +65,7 @@ out geom;`;
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
         console.log(`Overpass: ${url} (attempt ${attempt})`);
-        const res = await fetch(url, { method: 'POST', body: new URLSearchParams({ data: query }), headers: { 'User-Agent': 'fragateiro-map-builder (github.com/TagusNavyVirtualMuseum/fragateiro)' } });
+        const res = await fetch(url, { method: 'POST', body: new URLSearchParams({ data: query }), headers: { 'User-Agent': 'fragateiro-map-builder (github.com/Everyday-Sails/fragateiro)' } });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return await res.json();
       } catch (e) {
