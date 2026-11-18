@@ -78,6 +78,11 @@ export interface BoatVisual {
   horse?: { x: number; halfWidth: number; footY: number; topY: number };
   /** Sheets (ropes from a sail's clew to the boat), drawn as lines. */
   sheets?: SheetVisual[];
+  /**
+   * The anchor: where its cable leaves the boat (the hawse or the stem head, model frame), and
+   * the model nodes of an anchor hanging there, hidden while the anchor is down.
+   */
+  anchor?: { hawse: V3; stowed?: string[] };
 }
 
 export interface SheetVisual {
@@ -122,6 +127,7 @@ export const BOAT_VISUALS: Record<string, BoatVisual> = {
       { sail: 'main', clew: [3.23, 1.75, 0.0], to: 'horse' },
       { sail: 'fore', clew: [-0.54, 1.49, -0.17], to: { port: [0.3, 0.85, 1.45], starboard: [0.3, 0.85, -1.45] } },
     ],
+    anchor: { hawse: [-5.6, 0.95, 0] }, // over the stem head
     rudder: {
       nodes: ['Leme01', 'Leme02', 'Leme03'],
       pivot: [4.3, 0, 0],
@@ -172,6 +178,7 @@ export const BOAT_VISUALS: Record<string, BoatVisual> = {
       { sail: 'advanced', clew: [-6.96, 4.48, -0.04], to: { port: [-5.2, 1.3, 0.9], starboard: [-5.2, 1.3, -0.9] } },
     ],
     // Blade plus the yoke on its head (the cross bar 'Guia' and its blocks).
+    anchor: { hawse: [-6.4, 1.7, 0] },
     rudder: {
       nodes: ['direcao', 'direcao.001', 'Guia', 'roldana_direcao1'],
       pivot: [7.0, 0, 0],
@@ -225,6 +232,8 @@ export const BOAT_VISUALS: Record<string, BoatVisual> = {
       { sail: 'jib', clew: [4.47, 2.91, 1.34], to: { port: [2.5, 1.9, -2.4], starboard: [2.5, 1.9, 2.4] } },
     ],
     // Rudder blade and tiller (pieces of the hull mesh Corpo), about the hinge line.
+    // The anchor hangs from the starboard bow on its chain (split off correntes.002); lowered, it goes.
+    anchor: { hawse: [9.81, 2.85, 0.91], stowed: ['Ancora'] },
     rudder: {
       nodes: ['Corpo_part9', 'Corpo_part23'],
       pivot: [-10, 0, 0],
@@ -269,6 +278,7 @@ export const BOAT_VISUALS: Record<string, BoatVisual> = {
       { sail: 'mizzen', clew: [5.54, 1.28, 0.36], to: [6.12, 0.76, 0.29] },
     ],
     hiddenNodes: ['Cordas_part1', 'Cordas_part2', 'Cordas_part5'],
+    anchor: { hawse: [-5.2, 0.95, 0] },
     rudder: {
       nodes: ['Leme01', 'Leme01.001', 'Leme02', 'Leme02.001'],
       pivot: [4, 0, 0],
@@ -306,6 +316,7 @@ export const BOAT_VISUALS: Record<string, BoatVisual> = {
       { sail: 'main', clew: [3.92, 1.6, -0.26], to: 'horse' },
       { sail: 'mizzen', clew: [6.26, 0.83, 0.16], to: [6.85, 0.93, 0] },
     ],
+    anchor: { hawse: [-5.3, 1.3, 0] },
     rudder: {
       nodes: ['Leme'],
       pivot: [4.43, 0, 0],
@@ -332,6 +343,7 @@ export const BOAT_VISUALS: Record<string, BoatVisual> = {
     ],
     // The sheet from the clew to the stern, by the tiller.
     sheets: [{ sail: 'main', clew: [3.77, 1.1, 0], to: [3.95, 0.75, 0] }],
+    anchor: { hawse: [-4.0, 1.2, 0] },
     rudder: {
       nodes: ['Leme'],
       pivot: [4.35, 0, 0],
@@ -356,6 +368,7 @@ export const BOAT_VISUALS: Record<string, BoatVisual> = {
       },
     ],
     sheets: [{ sail: 'main', clew: [6.04, 1.35, 0], to: [6.7, 1.0, 0] }],
+    anchor: { hawse: [-6.6, 1.2, 0] },
     rudder: {
       nodes: ['Leme'],
       pivot: [8.2, 0, 0],
@@ -383,6 +396,7 @@ export const BOAT_VISUALS: Record<string, BoatVisual> = {
       },
     ],
     // The espadela, the long steering oar, turns about the sternpost.
+    anchor: { hawse: [9.5, 2.0, 0] },
     rudder: {
       nodes: ['Leme'],
       pivot: [-9.92, 0, 0.4],
@@ -406,6 +420,7 @@ export const BOAT_VISUALS: Record<string, BoatVisual> = {
       { sail: 'main', clew: [6.16, 2.27, 0], to: [5.4, 1.4, 0] },
       { sail: 'jib', clew: [-2.25, 2.47, 0], to: { port: [-1.4, 1.5, 0.7], starboard: [-1.4, 1.5, -0.7] } },
     ],
+    anchor: { hawse: [-5.5, 1.8, 0] },
     rudder: { nodes: ['Leme'], pivot: [5.68, 0, 0], axis: { base: [5.68, -0.25, 0], top: [5.68, 2.4, 0] } },
   },
   bac: {
@@ -425,6 +440,7 @@ export const BOAT_VISUALS: Record<string, BoatVisual> = {
       { sail: 'main', clew: [5.47, 2.04, 0], to: [4.6, 1.4, 0] },
       { sail: 'jib', clew: [-1.65, 1.78, 0], to: { port: [-0.8, 1.5, 1.2], starboard: [-0.8, 1.5, -1.2] } },
     ],
+    anchor: { hawse: [-5.3, 1.1, 0] },
     rudder: { nodes: ['Leme'], pivot: [4.98, 0, 0], axis: { base: [4.98, -0.6, 0], top: [4.98, 1.65, 0] } },
   },
 };

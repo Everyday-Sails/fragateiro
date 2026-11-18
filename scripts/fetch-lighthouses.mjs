@@ -25,7 +25,7 @@ async function query(bbox) {
   for (const url of OVERPASS) {
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
-        const res = await fetch(url, { method: 'POST', body: new URLSearchParams({ data: q }), headers: { 'User-Agent': 'fragateiro-map-builder (github.com/TagusNavyVirtualMuseum/fragateiro)' } });
+        const res = await fetch(url, { method: 'POST', body: new URLSearchParams({ data: q }), headers: { 'User-Agent': 'fragateiro-map-builder (github.com/Everyday-Sails/fragateiro)' } });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return (await res.json()).elements;
       } catch (e) {

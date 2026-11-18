@@ -19,6 +19,8 @@ import {
 } from '@babylonjs/core';
 import tagusMask from '../assets/map/tagus-mask.png?url';
 import tagusHeight from '../assets/map/tagus-height.png?url';
+import tagusCurrent from '../assets/map/tagus-current.png?url';
+import tagusCurrentJson from '../assets/map/tagus-current.json';
 import tagusJson from '../assets/map/tagus.json';
 import arcachonMask from '../assets/map/arcachon-mask.png?url';
 import arcachonHeight from '../assets/map/arcachon-height.png?url';
@@ -44,6 +46,7 @@ import medioJson from '../assets/map/medio.json';
 import { createMedioLandmarks } from './landmarksMedio';
 import { getArea, type AreaId } from '../world/area';
 import { LandMask, type MapMeta } from '../world/landMask';
+import { GridCurrent, type CurrentGridMeta } from '../physics';
 import { Terrain, type HeightsMeta } from '../world/terrain';
 import { createLandmarks, type BridgeLine } from './landmarks';
 import { createArcachonLandmarks } from './landmarksArcachon';
@@ -79,6 +82,31 @@ const heightUrl = FILES[AREA.id].height;
 export const MAP_META = FILES[AREA.id].meta as TagusMeta;
 addExtraPlaces(MAP_META, AREA.extraPlaces);
 
+/** Flats that dry at low tide (scripts/fetch-flats.mjs), for the areas that have them. */
+const FLATS = import.meta.glob<string>('../assets/map/*-flats.png', { query: '?url', import: 'default', eager: true });
+const flatsUrl: string | undefined = FLATS[`../assets/map/${AREA.id === 'tejo' ? 'tagus' : AREA.id}-flats.png`];
+
+/** Tidal streams (scripts/tide-currents.mjs), for the areas that have them. */
+const CURRENTS: Partial<Record<AreaId, { meta: CurrentGridMeta & { maxSpeed: number }; png: string }>> = {
+  tejo: { meta: tagusCurrentJson, png: tagusCurrent },
+};
+
+/** The open area's tidal stream at the height of the ebb (factor 1), if it has one. */
+export async function loadCurrent(): Promise<GridCurrent | undefined> {
+  const c = CURRENTS[AREA.id];
+  if (!c) return undefined;
+  const { rgba } = await imagePixels(c.png);
+  const n = c.meta.width * c.meta.height;
+  const east = new Float32Array(n);
+  const north = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    if (!rgba[i * 4 + 2]) continue; // not water
+    east[i] = ((rgba[i * 4] - 128) / 127) * c.meta.maxSpeed;
+    north[i] = ((rgba[i * 4 + 1] - 128) / 127) * c.meta.maxSpeed;
+  }
+  return new GridCurrent(c.meta, east, north);
+}
+
 /** Pixels of an image (RGBA). */
 async function imagePixels(url: string): Promise<{ image: HTMLImageElement; rgba: Uint8ClampedArray }> {
   const image = new Image();
@@ -95,11 +123,20 @@ async function imagePixels(url: string): Promise<{ image: HTMLImageElement; rgba
 /** Download and decode the mask (the red channel is the water map) and the land heights. */
 export async function loadMapMask(): Promise<{ mask: LandMask; image: HTMLImageElement; terrain?: Terrain }> {
   const heights = MAP_META.heights;
-  const [{ image, rgba }, h] = await Promise.all([imagePixels(maskUrl), heights ? imagePixels(heightUrl) : Promise.resolve(null)]);
+  const [{ image, rgba }, h, f] = await Promise.all([
+    imagePixels(maskUrl),
+    heights ? imagePixels(heightUrl) : Promise.resolve(null),
+    flatsUrl ? imagePixels(flatsUrl) : Promise.resolve(null),
+  ]);
   const water = new Uint8Array(image.width * image.height);
   for (let i = 0; i < water.length; i++) water[i] = rgba[i * 4];
+  let flats: Uint8Array | undefined;
+  if (f) {
+    flats = new Uint8Array(water.length);
+    for (let i = 0; i < water.length; i++) flats[i] = f.rgba[i * 4];
+  }
   const terrain = heights && h ? Terrain.fromRGBA(heights, MAP_META.northWest, h.rgba) : undefined;
-  return { mask: new LandMask(MAP_META, water), image, terrain };
+  return { mask: new LandMask(MAP_META, water, flats), image, terrain };
 }
 
 Effect.ShadersStore.landVertexShader = /* glsl */ `
@@ -201,11 +238,118 @@ void main() {
 }
 `;
 
+Effect.ShadersStore.mudVertexShader = /* glsl */ `
+precision highp float;
+attribute vec3 position;
+uniform mat4 world;
+uniform mat4 viewProjection;
+uniform vec2 northWest;
+uniform vec2 size;
+varying vec3 vWorld;
+varying vec2 vUV;
+void main() {
+  vec4 wp = world * vec4(position, 1.0);
+  vUV = vec2((wp.x - northWest.x) / size.x, 1.0 - (northWest.y - wp.z) / size.y);
+  vWorld = wp.xyz;
+  gl_Position = viewProjection * wp;
+}
+`;
+
+Effect.ShadersStore.mudFragmentShader = /* glsl */ `
+precision highp float;
+uniform sampler2D flats;
+uniform vec3 cameraPosition;
+uniform vec3 skyColor;
+uniform vec3 sunDirection;
+uniform float fogDensity;
+varying vec3 vWorld;
+varying vec2 vUV;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+void main() {
+  float f = texture2D(flats, vUV).r;
+  if (f < 0.5) discard;
+  vec2 p = vWorld.xz;
+  // Grey-brown mud, darker and shiny where it is still wet (near the water's edge and in the
+  // pools left by the tide), with the ripples the ebb leaves.
+  float big = noise(p * 0.01) * 0.6 + noise(p * 0.05) * 0.4;
+  float edge = smoothstep(0.5, 0.9, f);
+  vec3 dry = vec3(0.46, 0.40, 0.32);
+  vec3 wet = vec3(0.24, 0.22, 0.19);
+  vec3 color = mix(wet, dry, edge * smoothstep(0.35, 0.65, big));
+  float pools = smoothstep(0.62, 0.7, noise(p * 0.03 + 7.0));
+  color = mix(color, skyColor * 0.55, pools * 0.6);
+  color *= 0.9 + 0.1 * sin(p.x * 1.3 + noise(p * 0.2) * 4.0);
+  color *= 0.75 + 0.35 * max(sunDirection.y, 0.0);
+  float dist = length(cameraPosition - vWorld);
+  float fog = 1.0 - exp(-pow(dist * fogDensity, 2.0));
+  gl_FragColor = vec4(mix(color, skyColor, fog), 1.0);
+}
+`;
+
+/**
+ * The flats that dry at low tide, drawn as mud just above the water (shown only at low tide).
+ */
+function createMud(scene: Scene, mask: LandMask, skyColor: Color3, sunDirection: Vector3, fogDensity: number): Mesh | undefined {
+  if (!flatsUrl || !mask.flats) return undefined;
+  const m = mask.meta;
+  // The part of the map with flats.
+  let c0 = m.width;
+  let c1 = 0;
+  let r0 = m.height;
+  let r1 = 0;
+  for (let r = 0; r < m.height; r++)
+    for (let c = 0; c < m.width; c++)
+      if (mask.flats[r * m.width + c]) {
+        c0 = Math.min(c0, c);
+        c1 = Math.max(c1, c);
+        r0 = Math.min(r0, r);
+        r1 = Math.max(r1, r);
+      }
+  if (c1 < c0) return undefined;
+  const w = (c1 - c0 + 1) * m.cellSize;
+  const h = (r1 - r0 + 1) * m.cellSize;
+  const mud = MeshBuilder.CreateGround('mud', { width: w, height: h, subdivisions: 1 }, scene);
+  mud.position.set(m.northWest.x + c0 * m.cellSize + w / 2, MUD_LEVEL, m.northWest.y - r0 * m.cellSize - h / 2);
+  const tex = new Texture(flatsUrl, scene, false, true, Texture.BILINEAR_SAMPLINGMODE);
+  tex.wrapU = tex.wrapV = Texture.CLAMP_ADDRESSMODE;
+  const mat = new ShaderMaterial('mudMat', scene, { vertex: 'mud', fragment: 'mud' }, {
+    attributes: ['position'],
+    uniforms: ['world', 'viewProjection', 'northWest', 'size', 'cameraPosition', 'skyColor', 'sunDirection', 'fogDensity'],
+    samplers: ['flats'],
+  });
+  const { width, height } = mask.sizeMetres;
+  mat.setTexture('flats', tex);
+  mat.setVector2('northWest', new Vector2(m.northWest.x, m.northWest.y));
+  mat.setVector2('size', new Vector2(width, height));
+  mat.setColor3('skyColor', skyColor);
+  mat.setVector3('sunDirection', sunDirection);
+  mat.setFloat('fogDensity', fogDensity);
+  mat.onBindObservable.add(() => {
+    const cam = scene.activeCamera;
+    if (cam) mat.getEffect()?.setVector3('cameraPosition', cam.globalPosition);
+  });
+  mud.material = mat;
+  mud.isPickable = false;
+  mud.setEnabled(false);
+  return mud;
+}
+
+/** Height of the drying mud above the still water, m (just above the wave crests). */
+const MUD_LEVEL = 0.45;
+
 export interface MapView {
   /** Call every frame (bobs the buoys, keeps labels readable). */
   update(time: number, camera: Camera): void;
   /** Show a marker post at a destination (or none). */
   setTarget(p: { x: number; y: number } | null): void;
+  /** Low tide: show the drying flats (areas that have them). */
+  setLowTide(low: boolean): void;
 }
 
 export function createMapView(scene: Scene, mask: LandMask, skyColor: Color3, sunDirection: Vector3, fogDensity: number, labelNames?: string[], terrain?: Terrain): MapView {
@@ -322,8 +466,12 @@ export function createMapView(scene: Scene, mask: LandMask, skyColor: Color3, su
     m.isPickable = false;
   }
   marker.setEnabled(false);
+  const mud = createMud(scene, mask, skyColor, sunDirection, fogDensity);
 
   return {
+    setLowTide(low) {
+      mud?.setEnabled(low);
+    },
     setTarget(p) {
       marker.setEnabled(!!p);
       if (p) marker.position.set(p.x, 0, p.y);

@@ -4,6 +4,7 @@
 export * from './types';
 export * from './foil';
 export * from './wind';
+export * from './current';
 export * from './simulator';
 export * from './polar';
 export * from './autotrim';

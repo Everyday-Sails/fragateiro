@@ -115,6 +115,8 @@ export interface Controls {
   balanced?: boolean;
   /** No leeway in the track: the boat goes where it points (easy level). */
   noDrift?: boolean;
+  /** At anchor: where the anchor lies (world, m) and how much cable is out, m. */
+  anchor?: { x: number; y: number; rode: number } | null;
 }
 
 export interface BoatState {
@@ -178,4 +180,6 @@ export interface ForceReport {
   /** True wind angle off the bow, deg (+ = from starboard). */
   trueWindAngleDeg: number;
   heelMoment: number;
+  /** Pull of the anchor cable on the bow (zero when slack or not anchored). */
+  anchor?: PointForce;
 }

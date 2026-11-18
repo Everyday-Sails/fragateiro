@@ -26,8 +26,14 @@ export interface HudCallbacks {
   onMissions(): void;
   onTimeOfDay(id: string): void;
   onNarration(mode: string): void;
+  /** The tidal stream: 'slack', 'ebb' or 'flood'. */
+  onCurrent(id: string): void;
+  /** The tide: 'high' or 'low'. */
+  onTide(id: string): void;
   /** Toggle the fishing mode (boats with a net: the Muleta). */
   onFish(): void;
+  /** Drop the anchor or weigh it. */
+  onAnchor(): void;
 }
 
 export interface Navigation {
@@ -101,6 +107,9 @@ export class SailingHud {
   private readonly sheetAuto = el('span', 'sheet-auto');
   private groups: string[] = [];
   private fishBtn!: HTMLButtonElement;
+  private anchorBtn!: HTMLButtonElement;
+  private currentRow!: HTMLLabelElement;
+  private tideRow!: HTMLLabelElement;
   private readonly rudderBar = el('div', 'rudder-bar');
   private readonly rudderNeedle = el('div', 'rudder-needle');
   private readonly warning = el('div', 'warning');
@@ -209,7 +218,7 @@ export class SailingHud {
     const rudderLabel = el('span', 'helm-label', t('hud.rudder'));
     rudderLabel.title = t('hud.rudderKeys');
     helm.append(sheetsLabel, this.sheetAll, this.sheetAuto, el('span', 'helm-divider'), rudderLabel, this.rudderLeft, this.rudderBar, this.rudderRight);
-    // Small commands by the helm: fishing (boats with a net), reefing and the anchor (coming).
+    // Small commands by the helm: fishing (boats with a net), reefing (coming) and the anchor.
     const tools = el('div', 'helm-tools');
     const tool = (cls: string, svg: string, title: string) => {
       const b = el('button', `tool ${cls}`, `<svg viewBox="0 0 24 24" width="20" height="20">${svg}</svg>`);
@@ -224,7 +233,11 @@ export class SailingHud {
       cb.onFish();
     };
     tool('reef', '<path d="M7 3v18M7 4l11 15H7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M7 13h6.5M7 16h8.7" stroke="currentColor" stroke-width="1.6" stroke-dasharray="1.6 1.4"/>', `${t('tool.reef')} · ${t('tool.soon')}`).disabled = true;
-    tool('anchor', '<circle cx="12" cy="5" r="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v14M8 11h8M4.5 14.5C5.5 18.5 8.5 21 12 21s6.5-2.5 7.5-6.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>', `${t('tool.anchor')} · ${t('tool.soon')}`).disabled = true;
+    this.anchorBtn = tool('anchor', '<circle cx="12" cy="5" r="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v14M8 11h8M4.5 14.5C5.5 18.5 8.5 21 12 21s6.5-2.5 7.5-6.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>', `${t('tool.anchor')} (L)`);
+    this.anchorBtn.onclick = () => {
+      this.anchorBtn.blur();
+      cb.onAnchor();
+    };
     helm.append(tools);
 
     // --- Bottom right: wind and view options
@@ -235,6 +248,15 @@ export class SailingHud {
       <label>${t('opts.speed')} <input type="range" min="2" max="30" step="1" name="speed"> <output name="speedOut"></output></label>
       <label class="check"><input type="checkbox" name="gusty"> ${t('opts.gusty')}</label>
       <label class="check"><input type="checkbox" name="windVisible" checked> ${t('opts.showWind')}</label>
+      <label class="tide-row" hidden>${t('opts.tide')} <select name="tide">
+        <option value="high">${t('opts.high')}</option>
+        <option value="low">${t('opts.low')}</option>
+      </select></label>
+      <label class="current-row" hidden>${t('opts.current')} <select name="current">
+        <option value="slack">${t('opts.slack')}</option>
+        <option value="ebb">${t('opts.ebb')}</option>
+        <option value="flood">${t('opts.flood')}</option>
+      </select></label>
       <label>${t('opts.timeOfDay')} <select name="timeOfDay">
         <option value="sunrise">${t('opts.sunrise')}</option>
         <option value="day">${t('opts.day')}</option>
@@ -317,6 +339,18 @@ export class SailingHud {
     this.soundBox.addEventListener('change', () => cb.onSound(this.soundBox.checked));
     const traffic = opts.querySelector<HTMLInputElement>('[name=traffic]')!;
     traffic.addEventListener('change', () => cb.onTraffic(traffic.checked));
+    this.tideRow = opts.querySelector<HTMLLabelElement>('.tide-row')!;
+    const tideSel = opts.querySelector<HTMLSelectElement>('[name=tide]')!;
+    tideSel.addEventListener('change', () => {
+      tideSel.blur();
+      cb.onTide(tideSel.value);
+    });
+    this.currentRow = opts.querySelector<HTMLLabelElement>('.current-row')!;
+    const current = opts.querySelector<HTMLSelectElement>('[name=current]')!;
+    current.addEventListener('change', () => {
+      current.blur();
+      cb.onCurrent(current.value);
+    });
     const tod = opts.querySelector<HTMLSelectElement>('[name=timeOfDay]')!;
     tod.value = loadTimeOfDay();
     tod.addEventListener('change', () => {
@@ -440,6 +474,22 @@ export class SailingHud {
   setTimeScale(k: number): void {
     this.timeScale = k;
     this.timeScaleSelect.value = String(k);
+  }
+
+  /** Offer the tide setting (only areas with flats that dry have it). */
+  setTideAvailable(on: boolean): void {
+    this.tideRow.hidden = !on;
+  }
+
+  /** Offer the tidal stream setting (only areas with a stream map have it). */
+  setCurrentAvailable(on: boolean): void {
+    this.currentRow.hidden = !on;
+  }
+
+  /** Light the anchor button while the anchor is down. */
+  setAnchor(on: boolean): void {
+    this.anchorBtn.classList.toggle('active', on);
+    this.anchorBtn.title = `${t(on ? 'tool.weigh' : 'tool.anchor')} (L)`;
   }
 
   setSound(on: boolean): void {
@@ -608,7 +658,16 @@ export class SailingHud {
     this.settingsSlot.prepend(label);
   }
 
-  update(state: BoatState, controls: Controls, report: ForceReport, wind: TrueWind, paused: boolean, aground = false, nav: Navigation | null = null): void {
+  update(
+    state: BoatState,
+    controls: Controls,
+    report: ForceReport,
+    wind: TrueWind,
+    paused: boolean,
+    aground = false,
+    nav: Navigation | null = null,
+    stream: { east: number; north: number } = { east: 0, north: 0 },
+  ): void {
     this.updateNav(state, nav);
     const heading = (rad2deg(state.heading) + 360) % 360;
     const twa = Math.abs(report.trueWindAngleDeg);
@@ -616,12 +675,19 @@ export class SailingHud {
       t(twa < 36 ? 'pos.irons' : twa < 60 ? 'pos.closeHauled' : twa < 80 ? 'pos.closeReach' : twa < 110 ? 'pos.beamReach' : twa < 150 ? 'pos.broadReach' : 'pos.running');
     const tack = t(report.trueWindAngleDeg >= 0 ? 'tack.starboard' : 'tack.port');
     const drift = this.easy ? '' : `<span class="drift" title="${t('ro.drift')}">${t('ro.driftShort')} ${toKnots(Math.abs(state.v)).toFixed(1)} ${state.v >= 0 ? '→' : '←'}</span>`;
+    // The tidal stream where the boat is: its speed and the way it runs (towards).
+    const streamKn = toKnots(Math.hypot(stream.east, stream.north));
+    const streamTo = (rad2deg(Math.atan2(stream.east, stream.north)) + 360) % 360;
+    const streamRow =
+      streamKn >= 0.1
+        ? `<dt>${t('ro.current')}</dt><dd>${streamKn.toFixed(1)} kn <span class="stream-arrow" style="display:inline-block;transform:rotate(${streamTo.toFixed(0)}deg)">↑</span> ${streamTo.toFixed(0)}°</dd>`
+        : '';
     this.readout.innerHTML = `
       <div class="big">${toKnots(Math.hypot(state.u, state.v)).toFixed(1)}<small> kn</small>${drift}</div>
       <div class="tscale" title="${t('ro.timeTitle')}">${this.timeScale === 1 ? t('ro.realTime') : t('ro.timeX', { n: this.timeScale })}${this.elapsed !== null ? ` · ${clock(this.elapsed)}` : ''}</div>
       <dl>
         <dt>${t('ro.heading')}</dt><dd>${heading.toFixed(0)}°</dd>
-        <dt>${t('ro.pointOfSail')}</dt><dd>${pointOfSail}${twa >= 36 ? `, ${tack}` : ''}</dd>
+        <dt>${t('ro.pointOfSail')}</dt><dd>${pointOfSail}${twa >= 36 ? `, ${tack}` : ''}</dd>${streamRow}
       </dl>`;
     this.compassBoat.setAttribute('transform', `rotate(${heading})`);
     this.compassWind.setAttribute('transform', `rotate(${rad2deg(wind.from)})`);

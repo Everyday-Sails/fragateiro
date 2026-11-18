@@ -14,6 +14,7 @@
 
 import { foilForce, hydrofoilCurve, sailCurve, type CoefficientCurve } from './foil';
 import type { BoatSpec, BoatState, Controls, ForceReport, ModeSpec, PointForce, SailReport } from './types';
+import { NO_CURRENT, type CurrentField } from './current';
 import { SteadyWind, deg2rad, rad2deg, type WindField } from './wind';
 
 export const RHO_AIR = 1.204;
@@ -40,6 +41,12 @@ const STERNWAY_TIME = 15;
 const BALANCED_RUDDER_FLOW = 1.5;
 /** Extra yaw damping with balanced sails, 1/s. */
 const BALANCED_YAW_DAMPING = 0.6;
+/**
+ * The anchor cable, once taut: its stiffness per kg of boat (N/m per kg; the boat surges on it
+ * with a period of about 8 s, the cable's sag acting as a spring), and its damping ratio.
+ */
+const ANCHOR_STIFFNESS = 0.6;
+const ANCHOR_DAMPING = 0.8;
 
 const ZERO_FORCE: PointForce = { fx: 0, fy: 0, x: 0, y: 0 };
 
@@ -75,6 +82,8 @@ export class SailboatSim {
   report: ForceReport;
   /** Keep the heading fixed (used to compute speed polars). */
   lockHeading = false;
+  /** The tidal stream: it carries the boat over the ground. */
+  current: CurrentField = NO_CURRENT;
 
   private readonly sailCurves = new Map<string, CoefficientCurve>();
   private readonly keelCurve: CoefficientCurve;
@@ -135,9 +144,7 @@ export class SailboatSim {
    */
   bestSheets(): Record<string, number> {
     const s = this.state;
-    const wind = this.wind.at(s.time, s.x, s.y);
-    const we = -wind.speed * Math.sin(wind.from);
-    const wn = -wind.speed * Math.cos(wind.from);
+    const [we, wn] = this.airOverWater();
     const wf = we * Math.sin(s.heading) + wn * Math.cos(s.heading);
     const ws = we * Math.cos(s.heading) - wn * Math.sin(s.heading);
     const out: Record<string, number> = {};
@@ -177,6 +184,17 @@ export class SailboatSim {
     return out;
   }
 
+  /**
+   * The wind's velocity (where it blows TO) relative to the water at the boat, east and
+   * north, m/s: the wind over the ground less the current.
+   */
+  private airOverWater(): [number, number] {
+    const s = this.state;
+    const wind = this.wind.at(s.time, s.x, s.y);
+    const c = this.current.at(s.x, s.y);
+    return [-wind.speed * Math.sin(wind.from) - c.east, -wind.speed * Math.cos(wind.from) - c.north];
+  }
+
   /** Same as step() but with a custom fixed step (faster, used for offline polars). */
   stepFixed(dt: number, h: number): void {
     for (let t = 0; t < dt - 1e-9; t += h) this.integrate(Math.min(h, dt - t));
@@ -188,12 +206,11 @@ export class SailboatSim {
     const mode = this.mode;
     const c = this.controls;
 
-    const wind = this.wind.at(s.time, s.x, s.y);
     const sinH = Math.sin(s.heading);
     const cosH = Math.cos(s.heading);
-    // Air velocity (where the wind blows TO), world frame, then boat frame.
-    const we = -wind.speed * Math.sin(wind.from);
-    const wn = -wind.speed * Math.cos(wind.from);
+    // Air velocity over the water (where the wind blows TO), world frame, then boat frame.
+    const [we, wn] = this.airOverWater();
+    const stream = this.current.at(s.x, s.y);
     const wf = we * sinH + wn * cosH;
     const ws = we * cosH - wn * sinH;
 
@@ -333,6 +350,39 @@ export class SailboatSim {
       }
     }
 
+    // --- Anchor: the cable pulls the bow towards the anchor once it is taut ------------
+    let anchorForce: PointForce | undefined;
+    if (c.anchor) {
+      const xb = spec.length / 2;
+      // Bow position and velocity, world frame (east, north).
+      const bx = s.x + xb * sinH;
+      const by = s.y + xb * cosH;
+      const vb = s.v + s.r * xb;
+      const ve = s.u * sinH + vb * cosH;
+      const vn = s.u * cosH - vb * sinH;
+      const de = c.anchor.x - bx;
+      const dn = c.anchor.y - by;
+      const d = Math.hypot(de, dn);
+      let fx = 0;
+      let fy = 0;
+      if (d > c.anchor.rode && d > 1e-6) {
+        const ue = de / d;
+        const un = dn / d;
+        const k = ANCHOR_STIFFNESS * spec.mass;
+        const damp = 2 * ANCHOR_DAMPING * Math.sqrt(k * this.massU);
+        // Moving away from the anchor (negative closing speed) is damped; a cable never pushes.
+        const tension = Math.max(0, k * (d - c.anchor.rode) - damp * (ve * ue + vn * un));
+        const fe = tension * ue;
+        const fn = tension * un;
+        fx = fe * sinH + fn * cosH;
+        fy = fe * cosH - fn * sinH;
+        X += fx;
+        Y += fy;
+        N += xb * fy;
+      }
+      anchorForce = { fx, fy, x: xb, y: 0 };
+    }
+
     // --- Integrate (semi-implicit Euler) ----------------------------------------------
     const du = (X + this.massV * s.v * s.r) / this.massU;
     const dv = (Y - this.massU * s.u * s.r) / this.massV;
@@ -351,8 +401,9 @@ export class SailboatSim {
     // Easy level: the boat goes where it points (the hull still works as usual, so speeds are
     // unchanged; only the sideways slip is left out of the track).
     const vTrack = c.noDrift ? 0 : s.v;
-    s.x += (s.u * sh + vTrack * ch) * h;
-    s.y += (s.u * ch - vTrack * sh) * h;
+    // The current carries the boat over the ground.
+    s.x += (s.u * sh + vTrack * ch + stream.east) * h;
+    s.y += (s.u * ch - vTrack * sh + stream.north) * h;
     s.time += h;
 
     // --- Report (for the HUD, force arrows and tests) -----------------------------
@@ -369,6 +420,7 @@ export class SailboatSim {
       apparentWindAngleDeg: rad2deg(Math.atan2(-awy, -awx)),
       trueWindAngleDeg: rad2deg(Math.atan2(-ws, -wf)),
       heelMoment,
+      anchor: anchorForce,
     };
   }
 

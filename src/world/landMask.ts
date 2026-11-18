@@ -19,8 +19,37 @@ export class LandMask {
   constructor(
     readonly meta: MapMeta,
     readonly water: Uint8Array,
+    /** Optional: 255 where the ground dries at low tide (scripts/fetch-flats.mjs). */
+    readonly flats?: Uint8Array,
   ) {
     if (water.length !== meta.width * meta.height) throw new Error('mask size does not match the map metadata');
+    if (flats && flats.length !== water.length) throw new Error('flats size does not match the map metadata');
+    this.now = water;
+  }
+
+  /** The water as it is now: the mask, less the flats at low tide. */
+  private now: Uint8Array;
+  private low = false;
+
+  /** Low tide: the flats dry and count as land. */
+  get lowTide(): boolean {
+    return this.low;
+  }
+
+  set lowTide(low: boolean) {
+    if (low === this.low) return;
+    this.low = low;
+    if (!low || !this.flats) {
+      this.now = this.water;
+      return;
+    }
+    const f = this.flats;
+    this.now = this.water.map((w, i) => Math.min(w, 255 - f[i]));
+  }
+
+  /** Has this map any flats that dry at low tide? */
+  get hasFlats(): boolean {
+    return !!this.flats?.some((v) => v > 0);
   }
 
   private reachable?: Uint8Array;
@@ -36,7 +65,7 @@ export class LandMask {
     const stack = [cy * m.width + cx];
     while (stack.length) {
       const i = stack.pop()!;
-      if (seen[i] || this.water[i] < 128) continue;
+      if (seen[i] || this.now[i] < 128) continue;
       seen[i] = 1;
       const c = i % m.width;
       const r = (i / m.width) | 0;
@@ -84,7 +113,7 @@ export class LandMask {
     const tx = fx - x0;
     const ty = fy - y0;
     const i = y0 * m.width + x0;
-    const w = this.water;
+    const w = this.now;
     const top = w[i] + (w[i + 1] - w[i]) * tx;
     const bottom = w[i + m.width] + (w[i + m.width + 1] - w[i + m.width]) * tx;
     return (top + (bottom - top) * ty) / 255;

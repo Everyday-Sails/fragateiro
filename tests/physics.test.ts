@@ -14,6 +14,8 @@ import {
   MULETA,
   SailboatSim,
   SteadyWind,
+  SteadyCurrent,
+  GridCurrent,
   deg2rad,
   foilForce,
   groupsInMode,
@@ -236,5 +238,67 @@ describe('architecture', () => {
     };
     walk(dir);
     for (const f of files) expect(readFileSync(f, 'utf8')).not.toMatch(/@babylonjs|document\.|window\./);
+  });
+});
+
+describe('the anchor', () => {
+  for (const spec of [FALUA, FRAGATA, CANOA]) {
+    it(`${spec.id}: at anchor, the boat stays within its cable and lies head to wind`, () => {
+      // Wind from the north; the boat starts heading east at 2 m/s, sails eased right out.
+      const sim = new SailboatSim(spec, new SteadyWind(0, 8), { heading: deg2rad(90), u: 2 });
+      for (const g of groupsInMode(spec, sim.controls.mode)) sim.controls.sheets[g] = 1;
+      const bow = spec.length / 2;
+      const anchor = { x: bow, y: 0, rode: 2 * spec.length };
+      sim.controls.anchor = anchor;
+      let worst = 0;
+      for (let t = 0; t < 300; t++) {
+        sim.stepFixed(1, 1 / 60);
+        const s = sim.state;
+        const d = Math.hypot(s.x + Math.sin(s.heading) * bow - anchor.x, s.y + Math.cos(s.heading) * bow - anchor.y);
+        if (t > 30) worst = Math.max(worst, d);
+      }
+      expect(worst).toBeLessThan(anchor.rode + 4);
+      // Downwind of the anchor (south of it), the bow towards it, within about 60 degrees.
+      expect(sim.state.y).toBeLessThan(0);
+      expect(Math.abs(wrapPi(sim.state.heading))).toBeLessThan(deg2rad(60));
+      expect(Math.hypot(sim.state.u, sim.state.v)).toBeLessThan(0.6);
+    });
+  }
+});
+
+describe('currents', () => {
+  it('a boat in still air drifts with the stream', () => {
+    const sim = new SailboatSim(FALUA, new SteadyWind(0, 0), { heading: 0 });
+    sim.current = new SteadyCurrent(1, 0); // 1 m/s towards the east
+    sim.stepFixed(60, 1 / 60);
+    // Carried 60 m east, less a little: over the water it feels 1 m/s of air from the east.
+    expect(sim.state.x).toBeGreaterThan(55);
+    expect(sim.state.x).toBeLessThan(60);
+    expect(Math.abs(sim.state.y)).toBeLessThan(15); // its sails catch that air a little
+    // It moves with the water, not through it.
+    expect(Math.hypot(sim.state.u, sim.state.v)).toBeLessThan(0.4);
+  });
+
+  it('a stream running with the wind takes some of the wind out of the sails', () => {
+    const run = (east: number) => {
+      // Wind from the west (blowing east), boat on a beam reach heading north.
+      const sim = new SailboatSim(FALUA, new SteadyWind(270, WIND), { heading: 0, u: 2 });
+      sim.current = new SteadyCurrent(east, 0);
+      sim.lockHeading = true;
+      sim.stepFixed(90, 1 / 60);
+      return sim.report.apparentWindSpeed;
+    };
+    expect(run(1.5)).toBeLessThan(run(0));
+  });
+
+  it('a grid stream is interpolated, reversed on the flood and still at slack water', () => {
+    const meta = { cellSize: 100, width: 3, height: 3, northWest: { x: 0, y: 300 } };
+    const g = new GridCurrent(meta, new Float32Array(9).fill(2), new Float32Array(9).fill(-1));
+    expect(g.at(150, 150)).toEqual({ east: 2, north: -1 });
+    g.factor = -1;
+    expect(g.at(150, 150)).toEqual({ east: -2, north: 1 });
+    g.factor = 0;
+    expect(g.at(150, 150)).toEqual({ east: 0, north: 0 });
+    expect(new GridCurrent(meta, new Float32Array(9), new Float32Array(9)).at(-500, 0)).toEqual({ east: 0, north: 0 });
   });
 });

@@ -4,7 +4,8 @@ import {
   MeshBuilder,
   StandardMaterial,
   DynamicTexture,
-  type Mesh,
+  Matrix,
+  Mesh,
   Quaternion,
   TransformNode,
   Vector3,
@@ -53,6 +54,13 @@ export class BoatView {
   private sheetTubes: Mesh[] = [];
   private pitch = 0;
   private roll = 0;
+  private readonly byName: Map<string, Node>;
+  /** Where the anchor lies (world x east, y north), or null when it is up. */
+  private anchorAt: { x: number; y: number; rode: number } | null = null;
+  /** The chain's link matrices (thin instances). */
+  private readonly chainLinks = new Float32Array(16 * MAX_LINKS);
+  private hawse?: TransformNode;
+  private anchorCable?: Mesh;
 
   private constructor(
     readonly spec: BoatSpec,
@@ -76,6 +84,7 @@ export class BoatView {
 
     const byName = new Map<string, Node>();
     for (const n of [...container.meshes, ...container.transformNodes]) byName.set(n.name, n);
+    this.byName = byName;
 
     // Pivots live in the glTF root's space, so re-parenting keeps the meshes exactly in place.
     // In that space +x is aft and -z is starboard; rotating by +angle about an upward axis
@@ -115,6 +124,12 @@ export class BoatView {
 
     for (const n of visual.hiddenNodes ?? []) byName.get(n)?.setEnabled(false);
     this.buildSheets(scene, gltfRoot as unknown as TransformNode);
+    if (visual.anchor) {
+      const [hx, hy, hz] = visual.anchor.hawse;
+      this.hawse = new TransformNode(`${spec.id}-hawse`, scene);
+      this.hawse.parent = gltfRoot;
+      this.hawse.position.set(hx / visual.unit, hy / visual.unit, hz / visual.unit);
+    }
     this.hullProfile = this.measureWaterline(visual.hullNodes.map((n) => byName.get(n)).filter((n): n is Node => !!n));
 
     // A sail modelled as a single plane must be drawn from both sides; a sail that already
@@ -288,6 +303,92 @@ export class BoatView {
     for (const t of this.sheetTubes) t.setEnabled(this.root.isEnabled());
   }
 
+  /** Drop the anchor at a point (world x east, y north) with `rode` m of chain out, or weigh it (null). */
+  setAnchor(at: { x: number; y: number; rode: number } | null): void {
+    if (at === this.anchorAt) return;
+    this.anchorAt = at;
+    for (const n of this.visual.anchor?.stowed ?? []) this.byName.get(n)?.setEnabled(!at);
+    if (!at) {
+      this.anchorCable?.dispose();
+      this.anchorCable = undefined;
+    }
+  }
+
+  /**
+   * The anchor chain: it hangs from the hawse as a catenary whose lowest point is at the
+   * anchor on the bottom (steep under the bow, flattening towards the anchor), drawn as links
+   * down to a few metres under the surface.
+   */
+  private updateAnchorCable(): void {
+    if (!this.anchorAt || !this.hawse) return;
+    const scene = this.root.getScene();
+    const h = this.hawse.computeWorldMatrix(true).getTranslation();
+    let dx = this.anchorAt.x - h.x;
+    let dz = this.anchorAt.y - h.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist < 0.01) {
+      const fwd = Vector3.TransformNormal(new Vector3(0, 0, 1), this.root.getWorldMatrix());
+      dx = fwd.x;
+      dz = fwd.z;
+    } else {
+      dx /= dist;
+      dz /= dist;
+    }
+    // The chain hangs from the hawse to the bottom; beyond that it lies on the bottom.
+    const height = Math.max(0.3, h.y - this.heave) + ANCHOR_DEPTH;
+    const span = Math.max(0.05, Math.min(dist, this.anchorAt.rode * 0.95));
+    const a = catenaryParameter(span, height);
+    // From the hawse (x = span) towards the anchor (x = 0), y above the bottom = a (cosh(x/a) - 1).
+    const bottom = this.heave - ANCHOR_DEPTH;
+    const lowest = this.heave - CHAIN_SHOWN_DEPTH;
+    const link = Math.max(0.07, 0.006 * this.spec.length);
+    const pts: Vector3[] = [];
+    // Walk down the chain in small steps of arc length, one point per link.
+    let x = span;
+    let p = new Vector3(h.x, h.y, h.z);
+    pts.push(p);
+    while (pts.length < MAX_LINKS && x > 0) {
+      // Slope dy/dx = sinh(x/a): step along the curve by one link.
+      const slope = Math.sinh(x / a);
+      const dxStep = link / Math.sqrt(1 + slope * slope);
+      x = Math.max(0, x - dxStep);
+      const y = bottom + a * (Math.cosh(x / a) - 1);
+      const s = span - x;
+      p = new Vector3(h.x + dx * s, y, h.z + dz * s);
+      if (p.y < lowest) break;
+      pts.push(p);
+    }
+    if (!this.anchorCable) {
+      const m = MeshBuilder.CreateTorus(`${this.spec.id}-anchor-chain`, { diameter: 1, thickness: 0.28, tessellation: 10 }, scene);
+      m.material = chainMaterial(scene);
+      m.isPickable = false;
+      m.alwaysSelectAsActiveMesh = true;
+      m.thinInstanceSetBuffer('matrix', this.chainLinks, 16, false);
+      this.anchorCable = m;
+    }
+    const buf = this.chainLinks;
+    const mat = new Matrix();
+    const side0 = Vector3.Cross(new Vector3(dx, 0, dz), Vector3.Up()).normalize();
+    let n = 0;
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const along = pts[i + 1].subtract(pts[i]);
+      const len = along.length();
+      if (len < 1e-6) continue;
+      along.scaleInPlace(1 / len);
+      // Each link turned a quarter turn from the last, about the chain's line.
+      const across = i % 2 ? Vector3.Cross(along, side0).normalize() : side0.subtract(along.scale(Vector3.Dot(side0, along))).normalize();
+      const normal = Vector3.Cross(along, across);
+      // Torus: ring in its local x-z plane. Local z along the chain (an oval link), x across.
+      Matrix.FromXYZAxesToRef(across.scale(link * 0.55), normal.scale(link * 0.55), along.scale(link * 1.05), mat);
+      mat.setTranslation(pts[i].add(pts[i + 1]).scale(0.5));
+      mat.copyToArray(buf, n * 16);
+      n++;
+    }
+    this.anchorCable.thinInstanceCount = n;
+    this.anchorCable.thinInstanceBufferUpdated('matrix');
+    this.anchorCable.setEnabled(this.root.isEnabled());
+  }
+
   /** Height of the waterline in the world (the boat bobbing on the waves), m. */
   get waterlineHeight(): number {
     return this.heave;
@@ -304,6 +405,7 @@ export class BoatView {
   setVisible(visible: boolean): void {
     this.root.setEnabled(visible);
     for (const t of this.sheetTubes) t.setEnabled(visible);
+    this.anchorCable?.setEnabled(visible);
   }
 
   /** Boat-frame point (forward, starboard, height) -> local position of `root`. */
@@ -353,12 +455,15 @@ export class BoatView {
     this.root.computeWorldMatrix(true);
     for (const p of this.sails.values()) p.node.computeWorldMatrix(true);
     this.updateSheets((id) => reports.get(id)?.active ?? true);
+    this.updateAnchorCable();
     if (this.rudder) {
       Quaternion.RotationAxisToRef(this.rudder.axis, (rudder * spec.rudder.maxAngleDeg * Math.PI) / 180, this.rudder.node.rotationQuaternion!);
     }
   }
 
   dispose(): void {
+    this.anchorCable?.dispose();
+    for (const t of this.sheetTubes) t.dispose();
     this.container.dispose();
     this.root.dispose();
   }
@@ -377,6 +482,24 @@ function isSingleSided(mesh: AbstractMesh): boolean {
     else if (d < -0.3) opposite++;
   }
   return opposite < 0.2 * Math.max(1, same);
+}
+
+/** Depth under an anchored boat (the river's anchorages), m. */
+const ANCHOR_DEPTH = 5;
+/** The chain is drawn down to this depth (the water hides the rest), m. */
+const CHAIN_SHOWN_DEPTH = 2.5;
+const MAX_LINKS = 400;
+
+/** a such that a (cosh(span / a) - 1) = height: the catenary through both ends, lowest at x = 0. */
+function catenaryParameter(span: number, height: number): number {
+  let lo = 1e-3;
+  let hi = 1e4;
+  for (let i = 0; i < 80; i++) {
+    const a = Math.sqrt(lo * hi);
+    if (a * (Math.cosh(Math.min(700, span / a)) - 1) > height) lo = a;
+    else hi = a;
+  }
+  return Math.sqrt(lo * hi);
 }
 
 const ROPE_POINTS = 13;
@@ -412,4 +535,15 @@ function ropeMaterial(scene: Scene): StandardMaterial {
   ropeMat.diffuseTexture = tex;
   ropeMat.specularColor = new Color3(0.08, 0.08, 0.06);
   return ropeMat;
+}
+
+let chainMat: StandardMaterial | undefined;
+/** Shared material: dark, rusty iron. */
+function chainMaterial(scene: Scene): StandardMaterial {
+  if (chainMat && chainMat.getScene() === scene) return chainMat;
+  chainMat = new StandardMaterial('chainMat', scene);
+  chainMat.diffuseColor = new Color3(0.32, 0.2, 0.16);
+  chainMat.specularColor = new Color3(0.35, 0.3, 0.28);
+  chainMat.specularPower = 24;
+  return chainMat;
 }

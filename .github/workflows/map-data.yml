@@ -14,6 +14,10 @@ on:
         description: 'Only add the lighthouses (keep the coastline and heights as they are)'
         type: boolean
         default: false
+      flats_only:
+        description: 'Only fetch the flats that dry at low tide (keep everything else as it is)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -26,13 +30,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install --no-save geotiff@3.0.5
+      - run: npm install --no-save geotiff@3.0.5 sharp@0.34.4
       - name: Build the maps
         env:
           AREAS: ${{ inputs.area }}
           ONLY_LIGHTHOUSES: ${{ inputs.lighthouses_only }}
+          ONLY_FLATS: ${{ inputs.flats_only }}
         run: |
           for a in $AREAS; do
+            if [ "$ONLY_FLATS" = "true" ]; then
+              node scripts/fetch-flats.mjs --area "$a"
+              continue
+            fi
             if [ "$ONLY_LIGHTHOUSES" != "true" ]; then
               node scripts/fetch-map.mjs --area "$a"
               node scripts/fetch-heights.mjs --area "$a"

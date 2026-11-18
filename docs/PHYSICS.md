@@ -87,6 +87,22 @@ X, Y, N are the sums of all forces and moments above. The heeling moment is the 
 force times their height; heel reduces the sail force by cos φ. Integration is semi-implicit
 Euler at 120 Hz.
 
+## Currents
+
+The boat moves through the water and the water moves over the ground: `sim.current` (a
+`CurrentField`, `src/physics/current.ts`) gives the stream at the boat, which is added to the
+boat's track, and the sails and windage feel the wind over the water (the wind over the ground
+less the stream). The hull, keel and rudder forces, which only depend on the motion through
+the water, are unchanged. In the game the Tagus stream comes from `tagus-current.png` (see the
+README), multiplied by 1 (ebb), -1 (flood) or 0 (slack).
+
+## The anchor
+
+At anchor (`controls.anchor`: where it lies and the cable out, 25 m in the game), the cable
+pulls the bow towards the anchor once it is taut: a spring (`ANCHOR_STIFFNESS`, 0.6 N/m per kg
+of boat, a surge period of about 8 s) with damping (`ANCHOR_DAMPING`, 0.8 of critical). The
+boat drifts back on it and lies head to wind.
+
 ## Muleta fishing
 
 In *lateral fishing* mode every sail is set and the net is dragged from the bow and stern

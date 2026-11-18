@@ -1,6 +1,6 @@
 // Free sailing on the Tagus: switch between the Falua and the Muleta.
 import { setupApp } from '../../src/ui/app';
-import { BOATS, GustyWind, SailboatSim, defaultControls, deg2rad, groupsInMode, type BoatSpec } from '../../src/physics';
+import { BOATS, GustyWind, NO_CURRENT, SailboatSim, defaultControls, deg2rad, groupsInMode, type BoatSpec, type GridCurrent } from '../../src/physics';
 import { BOAT_VISUALS, LITE_URLS } from '../../src/engine/boatVisuals';
 import { TrashView } from '../../src/engine/trashView';
 import { WhaleView } from '../../src/engine/whaleView';
@@ -11,7 +11,7 @@ import { CAMERA_VIEWS, CameraRig } from '../../src/engine/cameraRig';
 import { ForceArrows } from '../../src/engine/forceArrows';
 import { Input } from '../../src/engine/input';
 import { TouchControls, isTouchDevice } from '../../src/engine/touchControls';
-import { createMapView, loadMapMask, type MapView } from '../../src/engine/mapView';
+import { createMapView, loadCurrent, loadMapMask, type MapView } from '../../src/engine/mapView';
 import { getArea, toMapXY } from '../../src/world/area';
 import { getEdition } from '../../src/world/edition';
 
@@ -80,6 +80,11 @@ let wildlife: Wildlife | undefined;
 let trafficOn = true;
 let start = { x: 0, y: 0 };
 let aground = false;
+/** The tidal stream at the height of the ebb (areas with a stream map), and how it runs now. */
+let current: GridCurrent | undefined;
+let tide: 'slack' | 'ebb' | 'flood' = 'slack';
+/** The anchor (where it lies and the cable out), when down. */
+let anchorDown: { x: number; y: number; rode: number } | null = null;
 let destinations: Destination[] = [];
 let nextDestination = 0;
 /** Simulated seconds per real second: speeds stay realistic, the trip goes faster. */
@@ -146,6 +151,15 @@ const hud = new SailingHud(document.getElementById('hud')!, BOATS, {
   onCameraHeight: (h) => cameraRig.setElevation(h),
   onTimeScale: (k) => (timeScale = k),
   onTimeOfDay: (id) => setTimeOfDay(id as TimeOfDay),
+  onTide: (id) => {
+    mask.lowTide = id === 'low';
+    mapView?.setLowTide(mask.lowTide);
+  },
+  onCurrent: (id) => {
+    tide = id as typeof tide;
+    if (current) current.factor = tide === 'ebb' ? 1 : tide === 'flood' ? -1 : 0;
+  },
+  onAnchor: () => toggleAnchor(),
   onFish: () => {
     // Between sailing and the mode with the net out.
     const net = spec.modes.find((m) => m.net);
@@ -245,7 +259,28 @@ function cycleMode(): void {
   setMode(spec.modes[(i + 1) % spec.modes.length].id);
 }
 
+/** Cable let out: five times the depth of the river's usual anchorages (about 5 m), m. */
+const ANCHOR_RODE = 25;
+
+/** Drop the anchor where the bow is, or weigh it. */
+function toggleAnchor(): void {
+  if (anchorDown) {
+    weighAnchor();
+    return;
+  }
+  const s = sim.state;
+  const bow = spec.length / 2;
+  anchorDown = { x: s.x + Math.sin(s.heading) * bow, y: s.y + Math.cos(s.heading) * bow, rode: ANCHOR_RODE };
+  hud.setAnchor(true);
+}
+
+function weighAnchor(): void {
+  anchorDown = null;
+  hud.setAnchor(false);
+}
+
 function restart(): void {
+  weighAnchor();
   sim = new SailboatSim(spec, wind, { ...start, heading: START_HEADING });
   aground = false;
   hud.setBoat(spec, sim.controls);
@@ -253,6 +288,7 @@ function restart(): void {
 
 /** Move the boat (stopped) to a town's mooring, bow towards open water. */
 function teleport(d: Destination): void {
+  weighAnchor();
   const t = sim.state.time;
   const heading = sailableHeading(mask, d.x, d.y, d.heading, wind.at(t, d.x, d.y).from, spec.length);
   sim = new SailboatSim(spec, wind, { x: d.x, y: d.y, heading, time: t });
@@ -284,6 +320,7 @@ function stepWithLand(dt: number): void {
 }
 
 input.onPress('KeyM', cycleMode);
+input.onPress('KeyL', () => toggleAnchor());
 input.onPress('KeyB', () => {
   if (requiredBoat) return;
   const i = BOATS.findIndex((b) => b.id === wanted);
@@ -397,6 +434,8 @@ function readBest(id: string, l: Level): number | null {
 async function startMission(m: Mission, l: Level): Promise<void> {
   menu.hide();
   level = l;
+  // Each mission starts with the anchor up.
+  weighAnchor();
   try {
     localStorage.setItem('fragateiro.level', l);
   } catch {
@@ -594,6 +633,7 @@ function openStretch(from: Destination, want: number): { s0: { x: number; y: num
 function setOff(p: { x: number; y: number }, windFrom: number, heading: number, u: number): void {
   wind.fromDeg = ((((windFrom * 180) / Math.PI) % 360) + 360) % 360;
   hud.setWindFrom(wind.fromDeg);
+  weighAnchor();
   sim = new SailboatSim(spec, wind, { x: p.x, y: p.y, heading, u, time: sim.state.time });
   sim.controls.mode = spec.modes[0].id;
   aground = false;
@@ -726,8 +766,12 @@ function collide(): void {
 }
 
 async function main(): Promise<void> {
-  const [first, map] = await Promise.all([loadView(spec.id), loadMapMask()]);
+  const [first, map, stream] = await Promise.all([loadView(spec.id), loadMapMask(), loadCurrent()]);
   mask = map.mask;
+  current = stream;
+  if (current) current.factor = 0; // slack water until chosen
+  hud.setCurrentAvailable(!!current);
+  hud.setTideAvailable(mask.hasFlats);
   terrain = map.terrain;
   await document.fonts.ready; // labels and minimap are drawn once, with the period font
   mapView = createMapView(scene, mask, skyColor, sunDirection, fogDensity, AREA.ports, map.terrain);
@@ -816,6 +860,10 @@ async function main(): Promise<void> {
       applyInput(dt);
       sim.controls.balanced = level !== 'hard';
       sim.controls.noDrift = level === 'easy';
+      // Moved far from the anchor (a new start): it cannot still be down.
+      if (anchorDown && Math.hypot(sim.state.x - anchorDown.x, sim.state.y - anchorDown.y) > anchorDown.rode + 200) weighAnchor();
+      sim.controls.anchor = anchorDown;
+      sim.current = current ?? NO_CURRENT;
       const before = sim.state.time;
       stepWithLand(dt * timeScale);
       /** Game seconds this frame actually advanced (slow frames are capped). */
@@ -889,6 +937,7 @@ async function main(): Promise<void> {
     }
     const s = sim.state;
     const w = wind.at(s.time, s.x, s.y);
+    view.setAnchor(anchorDown);
     view.update(s, sim.report, sim.controls.rudder, time, dt);
     arrows.update(view.root, sim.report, w, s.heading, 12);
     netView.update(view.root, spec.net, !!sim.mode.net, s, sim.report.trueWindAngleDeg >= 0, time);
@@ -1085,7 +1134,7 @@ async function main(): Promise<void> {
       for (const id of found) narrator.report(id, time);
     }
     hud.caption(narrator && !paused && !missionDone ? narrator.update(time, moments?.calm() ?? true) : null);
-    hud.update(s, sim.controls, sim.report, w, paused, aground, nav);
+    hud.update(s, sim.controls, sim.report, w, paused, aground, nav, sim.current.at(s.x, s.y));
     scene.render();
   });
 }

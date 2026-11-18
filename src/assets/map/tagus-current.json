@@ -1,0 +1,12 @@
+{
+ "source": "scripts/tide-currents.mjs (from the land/water map)",
+ "cellSize": 100,
+ "width": 565,
+ "height": 674,
+ "northWest": {
+  "x": -34758.29,
+  "y": 33725.07
+ },
+ "maxSpeed": 2.057777777777778,
+ "ebbUnderBridge": 1.5433333333333334
+}
