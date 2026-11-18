@@ -64,11 +64,20 @@ export class Traffic {
 
   /** Put a boat somewhere in open water around the player, sailing. */
   private place(b: Boat, player: { x: number; y: number }): void {
-    const spot = pickWaypoint(this.mask, player.x, player.y, Math.random, 400, 1800);
-    if (!spot) return;
     const t = b.sim.state.time;
-    const windFrom = this.wind.at(t, spot.x, spot.y).from;
-    const heading = sailableHeading(this.mask, spot.x, spot.y, Math.random() * Math.PI * 2, windFrom, b.spec.length);
+    // A spot where the whole hull is afloat (else it would be moved again at once).
+    for (let tries = 0; tries < 10; tries++) {
+      const spot = pickWaypoint(this.mask, player.x, player.y, Math.random, 400, 1800);
+      if (!spot) continue;
+      const windFrom = this.wind.at(t, spot.x, spot.y).from;
+      const heading = sailableHeading(this.mask, spot.x, spot.y, Math.random() * Math.PI * 2, windFrom, b.spec.length);
+      if (!hullAfloat(this.mask, spot.x, spot.y, heading, b.spec.length)) continue;
+      this.start(b, spot, heading, t);
+      return;
+    }
+  }
+
+  private start(b: Boat, spot: { x: number; y: number }, heading: number, t: number): void {
     b.sim = new SailboatSim(b.spec, this.wind, { x: spot.x, y: spot.y, heading, u: 1.5, time: t });
     b.sim.controls.balanced = true;
     this.newWaypoint(b);
@@ -143,7 +152,14 @@ export class Traffic {
     if (!this.visible) return;
     for (const b of this.boats) {
       const s = b.sim.state;
-      if (Math.hypot(s.x - player.x, s.y - player.y) > RANGE) this.place(b, player);
+      // Too far away, or left on dry ground when the tide went out: start it again elsewhere.
+      if (Math.hypot(s.x - player.x, s.y - player.y) > RANGE || !hullAfloat(this.mask, s.x, s.y, s.heading, b.spec.length)) this.place(b, player);
+      // No open water found for it (yet): keep it out of sight.
+      const now = b.sim.state;
+      if (!hullAfloat(this.mask, now.x, now.y, now.heading, b.spec.length)) {
+        b.view?.setVisible(false);
+        continue;
+      }
       // Small steps (the simulator caps one step at 0.25 s).
       for (let left = gameDt; left > 1e-6; left -= 0.2) {
         const step = Math.min(0.2, left);
