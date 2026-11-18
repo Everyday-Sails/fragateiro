@@ -334,6 +334,10 @@ function createMud(scene: Scene, mask: LandMask, skyColor: Color3, sunDirection:
     const cam = scene.activeCamera;
     if (cam) mat.getEffect()?.setVector3('cameraPosition', cam.globalPosition);
   });
+  // Only 0.45 m above the water: far off, the depth buffer cannot tell the two apart and they
+  // flicker. Pull the mud towards the camera (a depth bias, more for surfaces seen edge-on).
+  mat.zOffset = -8;
+  mat.zOffsetUnits = -8;
   mud.material = mat;
   mud.isPickable = false;
   mud.setEnabled(false);
