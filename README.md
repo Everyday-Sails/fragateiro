@@ -204,7 +204,11 @@ marks, built from OpenStreetMap by `scripts/fetch-map.mjs`; the buoys are the sa
 OpenSeaMap shows. Land heights (40 m grid, `<area>-height.png`) come from the Copernicus
 GLO-30 elevation model via `scripts/fetch-heights.mjs`: the hills of Lisbon and the Almada
 plateau rise behind the shore, and the camera stays above the ground. The land is drawn in
-4 km tiles, detailed only near the camera. The Tagus bridges follow their OpenStreetMap deck
+4 km tiles, detailed only near the camera, and painted from the land cover of ESA WorldCover
+(`scripts/fetch-landcover.mjs`, `<area>-cover.png`: the share of town, trees and fields in each
+40 m cell): towns in white and terracotta, woods dark green, fields in a patchwork. Near the
+camera (2.2 km) the woods have trees, two simple shapes drawn as instances
+(`src/engine/trees.ts`). The Tagus bridges follow their OpenStreetMap deck
 lines (`bridges` in `tagus.json`); all landmarks are built from simple shapes in
 `src/engine/landmarks.ts`. The areas' bounds are in `scripts/map-areas.mjs`; to add or change
 one, edit it and run the **Update map data** workflow (Actions tab) with the area's id, or
@@ -213,6 +217,7 @@ locally:
 ```bash
 node scripts/fetch-map.mjs --area arcachon
 npm install --no-save geotiff@3.0.5 && node scripts/fetch-heights.mjs --area arcachon
+node scripts/fetch-landcover.mjs --area arcachon
 ```
 
 (Behind a proxy, set `NODE_USE_ENV_PROXY=1`.)
@@ -229,7 +234,9 @@ aground on them.
 Then add the area to `src/world/area.ts`,
 `src/engine/mapView.ts` and its missions. Map data © OpenStreetMap contributors, ODbL.
 Heights: Copernicus GLO-30 DEM, © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH
-2014-2018, provided under COPERNICUS by the European Union and ESA.
+2014-2018, provided under COPERNICUS by the European Union and ESA. Land cover: © ESA
+WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA
+WorldCover consortium, CC BY 4.0.
 
 ## As an app, full screen, offline
 
