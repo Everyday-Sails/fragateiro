@@ -20,6 +20,11 @@ import { fromUrl } from 'geotiff';
 import { areaFromArgs } from './map-areas.mjs';
 
 const AREA = areaFromArgs();
+if (AREA.ancient) {
+  // A past age (Delos, 88 BC): today's towns and fields would be wrong; the game draws its own.
+  console.log(`${AREA.id}: an ancient area, no land cover`);
+  process.exit(0);
+}
 const OUT_DIR = new URL('../src/assets/map/', import.meta.url);
 const CELL = 40; // m, as the heights
 const SUB = 4; // samples per cell side (10 m apart, the source's own pixels)

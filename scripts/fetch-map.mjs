@@ -163,6 +163,8 @@ function joinRings(ways) {
 const args = process.argv.slice(2);
 const inputIdx = args.indexOf('--input');
 const osm = inputIdx >= 0 ? JSON.parse(readFileSync(args[inputIdx + 1], 'utf8')) : await download();
+// --save file.json keeps the Overpass response (to build again with --input, offline).
+if (inputIdx < 0 && args.includes('--save')) writeFileSync(args[args.indexOf('--save') + 1], JSON.stringify(osm));
 const elements = osm.elements ?? [];
 console.log(`${elements.length} OSM elements, grid ${W} x ${H} cells of ${CELL} m`);
 
@@ -304,6 +306,7 @@ for (const el of elements) {
   }
   if (lat === undefined) continue;
   const [x, y] = toXY(lat, lon);
+  if (AREA.ancient) continue; // a past age: the game names the places of the time
   places.push({ name: el.tags.name, kind, x: Math.round(x), y: Math.round(y) });
 }
 places.sort((a, b) => a.name.localeCompare(b.name));
@@ -317,6 +320,7 @@ for (const el of elements) {
   const colour = t[`seamark:${type}:colour`] ?? t['seamark:light:colour'] ?? '';
   const category = t[`seamark:${type}:category`] ?? '';
   const [x, y] = toXY(el.lat, el.lon);
+  if (AREA.ancient) continue; // no buoys then
   seamarks.push({ type, category, colour, name: t['seamark:name'] ?? t.name ?? '', x: Math.round(x), y: Math.round(y) });
 }
 console.log(`sea marks: ${seamarks.length}`);

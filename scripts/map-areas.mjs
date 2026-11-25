@@ -133,6 +133,25 @@ export const AREAS = {
       report: { 'by Almourol': [39.4595, -8.385], 'off Constância': [39.4715, -8.338], 'off Barquinha': [39.4555, -8.433] },
     },
   },
+
+  // Delos in 88 BC: the holy island and free port, Rheneia across the strait to the west and
+  // Mykonos to the north-east. The coastline is today's (OpenStreetMap); the sea stood a little
+  // lower then, and the ancient harbour works are drawn in the game. `ancient`: no modern sea
+  // marks or place names (the game names the ancient places).
+  delos: {
+    file: 'delos',
+    ancient: true,
+    bbox: { south: 37.35, west: 25.19, north: 37.47, east: 25.36 },
+    /** Mid-strait between Delos and Rheneia. */
+    origin: { lat: 37.4, lon: 25.255 },
+    /** Flood-fill start: open sea south-east of Delos. */
+    seed: { lat: 37.36, lon: 25.33 },
+    checks: {
+      land: {},
+      water: { 'south-east of Delos': [37.36, 25.33] },
+      report: { 'Delos (middle)': [37.396, 25.268], 'Rheneia (middle)': [37.39, 25.225], 'Mykonos town': [37.4467, 25.3289], 'the strait, north': [37.41, 25.25] },
+    },
+  },
 };
 
 /** The area named by `--area` on the command line (default: the Tagus). */

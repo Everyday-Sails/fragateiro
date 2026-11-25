@@ -55,7 +55,8 @@ for (const id of ids) {
   }
   const mLon = 111320 * Math.cos((meta.origin.lat * Math.PI) / 180);
   const toXY = (lat, lon) => [Math.round((lon - meta.origin.lon) * mLon), Math.round((lat - meta.origin.lat) * 110574)];
-  const els = await query(area.bbox);
+  // A past age (Delos, 88 BC): none of today's lighthouses.
+  const els = area.ancient ? [] : await query(area.bbox);
   const out = [];
   for (const el of els) {
     const t = el.tags ?? {};
