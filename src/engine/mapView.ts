@@ -40,6 +40,9 @@ import madeiraJson from '../assets/map/madeira.json';
 import oesteMask from '../assets/map/oeste-mask.png?url';
 import oesteHeight from '../assets/map/oeste-height.png?url';
 import oesteJson from '../assets/map/oeste.json';
+import delosMask from '../assets/map/delos-mask.png?url';
+import delosHeight from '../assets/map/delos-height.png?url';
+import delosJson from '../assets/map/delos.json';
 import medioMask from '../assets/map/medio-mask.png?url';
 import medioHeight from '../assets/map/medio-height.png?url';
 import medioJson from '../assets/map/medio.json';
@@ -75,6 +78,7 @@ const FILES: Record<AreaId, { meta: unknown; mask: string; height: string }> = {
   azores: { meta: azoresJson, mask: azoresMask, height: azoresHeight },
   madeira: { meta: madeiraJson, mask: madeiraMask, height: madeiraHeight },
   oeste: { meta: oesteJson, mask: oesteMask, height: oesteHeight },
+  delos: { meta: delosJson, mask: delosMask, height: delosHeight },
   medio: { meta: medioJson, mask: medioMask, height: medioHeight },
 };
 const AREA = getArea();

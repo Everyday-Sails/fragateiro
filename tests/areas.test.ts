@@ -4,7 +4,7 @@ import { AREAS, AREA_IDS } from '../src/world/area';
 import { AREA_MISSIONS, CLEANUPS, SUPPLIES } from '../src/world/missions';
 import { BOATS } from '../src/physics';
 
-const FILES = { tejo: 'tagus', medio: 'medio', arcachon: 'arcachon', aveiro: 'aveiro', pasaia: 'pasaia', azores: 'azores', madeira: 'madeira', oeste: 'oeste' } as const;
+const FILES = { tejo: 'tagus', medio: 'medio', arcachon: 'arcachon', aveiro: 'aveiro', pasaia: 'pasaia', azores: 'azores', madeira: 'madeira', oeste: 'oeste', delos: 'delos' } as const;
 
 describe('sailing areas', () => {
   for (const id of AREA_IDS) {
@@ -16,7 +16,8 @@ describe('sailing areas', () => {
     });
     it(`${id}: its lighthouses are on the map (scripts/fetch-lighthouses.mjs)`, () => {
       expect(Array.isArray(meta.lighthouses)).toBe(true);
-      if (id !== 'medio') expect(meta.lighthouses.length).toBeGreaterThan(0);
+      // The middle Tagus has none, and Delos in 88 BC none of today's.
+      if (id !== 'medio' && id !== 'delos') expect(meta.lighthouses.length).toBeGreaterThan(0);
     });
     it(`${id}: missions start and end at its ports, with a boat the game has`, () => {
       const m = AREA_MISSIONS[id];

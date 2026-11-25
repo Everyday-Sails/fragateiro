@@ -2,7 +2,7 @@
 // The maps themselves are built by scripts/fetch-map.mjs (areas in scripts/map-areas.mjs).
 import { DESTINATION_NAMES, EXTRA_PLACES } from './destinations';
 
-export type AreaId = 'tejo' | 'medio' | 'arcachon' | 'aveiro' | 'pasaia' | 'azores' | 'madeira' | 'oeste';
+export type AreaId = 'tejo' | 'medio' | 'arcachon' | 'aveiro' | 'pasaia' | 'azores' | 'madeira' | 'oeste' | 'delos';
 
 export interface AreaInfo {
   id: AreaId;
@@ -106,10 +106,24 @@ export const AREAS: Record<AreaId, AreaInfo> = {
       { name: 'Porto da Cruz', kind: 'village', lat: 32.773, lon: -16.826 },
     ],
   },
+  // Delos in 88 BC (a first version: the islands; the ancient harbour, town and ships come
+  // next). The places are the ancient ones (the map has no modern names).
+  delos: {
+    id: 'delos',
+    ports: ['Delos', 'Rheneia', 'Mykonos'],
+    boat: 'baleeiro', // for now: no ancient ship yet
+    tagusExtras: false,
+    extraPlaces: [
+      { name: 'Delos', kind: 'town', lat: 37.4003, lon: 25.2668 }, // the Sacred Harbour, west coast
+      { name: 'Rheneia', kind: 'village', lat: 37.392, lon: 25.2515 }, // its east shore, facing Delos
+      { name: 'Mykonos', kind: 'town', lat: 37.4455, lon: 25.3265 }, // the bay of the town
+    ],
+    start: { lat: 37.41, lon: 25.255 }, // the north end of the strait
+  },
 };
 export const AREA_IDS = Object.keys(AREAS) as AreaId[];
-/** Areas offered in the menu (Pasaia is hidden for now; ?area=pasaia still opens it). */
-export const MENU_AREAS: AreaId[] = AREA_IDS.filter((id) => id !== 'pasaia');
+/** Areas offered in the menu (Pasaia and Delos are hidden for now; ?area=… still opens them). */
+export const MENU_AREAS: AreaId[] = AREA_IDS.filter((id) => id !== 'pasaia' && id !== 'delos');
 
 const KEY = 'fragateiro.area';
 
