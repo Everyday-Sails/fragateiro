@@ -179,6 +179,10 @@ const hud = new SailingHud(document.getElementById('hud')!, BOATS, {
     paused = true;
     menu.show();
   },
+  onStop: () => {
+    paused = true;
+    menu.show();
+  },
   onWindVisible: (on) => windView.setVisible(on),
   onSound: (on) => sound.setMuted(!on),
   onTraffic: (on) => {

@@ -90,6 +90,7 @@ hud.sheetsEach = Sheets, sail by sail
 hud.sheetsAuto = the crew trims
 hud.mapTitle = Chart
 hud.close = Close
+hud.stop = Stop and go back to the menu
 tool.fish = Fish: put the net out or take it in
 tool.reef = Reef the sails
 tool.anchor = Drop anchor

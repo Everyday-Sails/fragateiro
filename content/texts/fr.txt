@@ -90,6 +90,7 @@ hud.sheetsEach = Écoutes, voile par voile
 hud.sheetsAuto = l’équipage règle
 hud.mapTitle = Carte
 hud.close = Fermer
+hud.stop = Arrêter et revenir au menu
 tool.fish = Pêcher : mettre le filet à l’eau ou le relever
 tool.reef = Prendre un ris
 tool.anchor = Mouiller l’ancre

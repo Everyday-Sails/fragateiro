@@ -30,6 +30,8 @@ export interface HudCallbacks {
   onCurrent(id: string): void;
   /** The tide: 'high' or 'low'. */
   onTide(id: string): void;
+  /** Stop the game and go back to its menu (the back button at the top). */
+  onStop(): void;
   /** Toggle the fishing mode (boats with a net: the Muleta). */
   onFish(): void;
   /** Drop the anchor or weigh it. */
@@ -267,7 +269,7 @@ export class SailingHud {
       <label>${t('opts.distance')} <input type="range" min="${DISTANCE_RANGE.min}" max="${DISTANCE_RANGE.max}" step="1" name="camDist"> <output name="camDistOut"></output></label>
       <label class="cam-height">${t('opts.height')} <input type="range" min="3" max="85" step="1" name="camHeight"> <output name="camHeightOut"></output></label>
       <label class="check"><input type="checkbox" name="forces"> ${t('opts.forces')} <small>(F)</small></label>
-      <label class="check"><input type="checkbox" name="sound" checked> ${t('opts.sound')} <small>(N)</small></label>
+      <label class="check"><input type="checkbox" name="sound"> ${t('opts.sound')} <small>(N)</small></label>
       <label class="check"><input type="checkbox" name="traffic" checked> ${t('opts.traffic')}</label>
       <label>${t('opts.gameSpeed')} <select name="timeScale">
         <option value="1">${t('opts.ts1')}</option>
@@ -415,8 +417,17 @@ export class SailingHud {
       mapToggle.blur();
     };
 
+    // Top left: stop the game and go back to the menu.
+    const back = el('button', 'panel back-btn', '<svg viewBox="0 0 24 24" width="22" height="22"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>');
+    back.title = t('hud.stop');
+    back.setAttribute('aria-label', t('hud.stop'));
+    back.onclick = () => {
+      back.blur();
+      cb.onStop();
+    };
+
     this.captionBox.hidden = true;
-    root.append(info, inst, banner, this.tag, this.captionBox, helm, opts, toggle, mapToggle);
+    root.append(info, inst, banner, this.tag, this.captionBox, helm, opts, toggle, mapToggle, back);
   }
 
   private camOutputs!: { distOut: HTMLOutputElement; heightOut: HTMLOutputElement };
