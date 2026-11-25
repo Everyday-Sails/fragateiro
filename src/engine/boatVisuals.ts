@@ -23,9 +23,11 @@ import baleeiroUrl from '../assets/models/baleeiro.glb?url';
 import baleeiroLite from '../assets/models/lite/baleeiro.glb?url';
 import bacUrl from '../assets/models/bac.glb?url';
 import bacLite from '../assets/models/lite/bac.glb?url';
+import lauronsUrl from '../assets/models/laurons.glb?url';
+import lauronsLite from '../assets/models/lite/laurons.glb?url';
 
 /** Light model of each boat, for the other boats sailing on the river. */
-export const LITE_URLS: Record<string, string> = { falua: faluaLite, muleta: muletaLite, fragata: fragataLite, catraio: catraioLite, canoa: canoaLite, pinasse: pinasseLite, moliceiro: moliceiroLite, rabelo: rabeloLite, baleeiro: baleeiroLite, bac: bacLite };
+export const LITE_URLS: Record<string, string> = { falua: faluaLite, muleta: muletaLite, fragata: fragataLite, catraio: catraioLite, canoa: canoaLite, pinasse: pinasseLite, moliceiro: moliceiroLite, rabelo: rabeloLite, baleeiro: baleeiroLite, bac: bacLite, laurons: lauronsLite };
 
 type V3 = [number, number, number];
 
@@ -61,6 +63,8 @@ export interface BoatVisual {
   waterline: number;
   sails: SailVisual[];
   rudder: PartVisual;
+  /** A second steering oar (Roman ships have one on each quarter): turns with the first. */
+  rudder2?: PartVisual;
   /** Model nodes never shown (e.g. ropes of sails that move, which would float in the air). */
   hiddenNodes?: string[];
   /** The model's bow points towards +x (most of our models point towards -x). */
@@ -442,6 +446,36 @@ export const BOAT_VISUALS: Record<string, BoatVisual> = {
     ],
     anchor: { hawse: [-5.3, 1.1, 0] },
     rudder: { nodes: ['Leme'], pivot: [4.98, 0, 0], axis: { base: [4.98, -0.6, 0], top: [4.98, 1.65, 0] } },
+  },
+  laurons: {
+    boat: 'laurons',
+    // Our own model of a Roman merchant ship (scripts/boats/laurons.mjs, generate-boat.mjs):
+    // metres, waterline at 0, bow towards -x.
+    hullNodes: ['Casco'],
+    url: lauronsUrl,
+    unit: 1,
+    scale: 1,
+    cgX: 0.2,
+    waterline: 0,
+    sails: [
+      {
+        sail: 'main',
+        // The square sail and its yard, modelled across the boat; they turn about the mast.
+        nodes: ['Vela', 'Verga'],
+        restAngle: Math.PI / 2,
+        pivot: [-1.5, 0, 0],
+        axis: { base: [-1.5, 0.4, 0], top: [-1.5, 12.6, 0] },
+      },
+    ],
+    // Sheets from the foot's corners to the quarters, port and starboard.
+    sheets: [
+      { sail: 'main', clew: [-1.82, 2.9, 5.6], to: [4.6, 2.2, 2.2] },
+      { sail: 'main', clew: [-1.82, 2.9, -5.6], to: [4.6, 2.2, -2.2] },
+    ],
+    anchor: { hawse: [-7.5, 2.05, 0] },
+    // The steering oars, each turning about its own loom (sloping up and forward).
+    rudder: { nodes: ['Leme', 'Cana'], pivot: [6.8, 0, 1.75], axis: { base: [6.8, -1.15, 1.75], top: [5.33, 2.35, 1.75] } },
+    rudder2: { nodes: ['Leme_2', 'Cana_2'], pivot: [6.8, 0, -1.75], axis: { base: [6.8, -1.15, -1.75], top: [5.33, 2.35, -1.75] } },
   },
 };
 

@@ -18,6 +18,7 @@ export { MOLICEIRO } from './boats/moliceiro';
 export { RABELO } from './boats/rabelo';
 export { BALEEIRO } from './boats/baleeiro';
 export { BAC } from './boats/bac';
+export { LAURONS } from './boats/laurons';
 
 import { CANOA } from './boats/canoa';
 import { CATRAIO } from './boats/catraio';
@@ -29,6 +30,7 @@ import { MOLICEIRO } from './boats/moliceiro';
 import { RABELO } from './boats/rabelo';
 import { BALEEIRO } from './boats/baleeiro';
 import { BAC } from './boats/bac';
-export const BOATS = [FALUA, MULETA, FRAGATA, CATRAIO, CANOA, PINASSE, MOLICEIRO, BALEEIRO, BAC];
+import { LAURONS } from './boats/laurons';
+export const BOATS = [FALUA, MULETA, FRAGATA, CATRAIO, CANOA, PINASSE, MOLICEIRO, BALEEIRO, BAC, LAURONS];
 /** Boats still being worked on: tested, but not offered in the games yet. */
 export const BOATS_IN_DEVELOPMENT: typeof BOATS = [RABELO];

@@ -13,6 +13,7 @@ The boats come from the MiraroTejo project (the lighter versions made for the vi
 | Moliceiro (Aveiro) | Meshy, cut by `scripts/cut-model.mjs` with `scripts/boats/moliceiro-meshy.mjs` (51 MB; the flag dropped, the hull narrowed from 4.4 to 2.5 m) | `src/assets/models/moliceiro.glb` | 2.4 MB |
 | Barco rabelo (Douro) | Meshy, cut with `scripts/boats/rabelo-meshy.mjs` (70 MB; bow towards +x; the square sail is modelled across the boat: `restAngle: π/2` in `boatVisuals.ts`; the espadela is the rudder) | `src/assets/models/rabelo.glb` | 2.8 MB |
 | Bote baleeiro (Azores) | Meshy, cut with `scripts/boats/baleeiro-meshy.mjs` (59 MB; hull narrowed from 3.1 to 2 m) | `src/assets/models/baleeiro.glb` | 2.4 MB |
+| Navis oneraria (Delos, 88 BC) | Our own model, `scripts/generate-boat.mjs` with `scripts/boats/laurons.mjs`: a Roman merchant ship of the Laurons 2 type, sized as the Trier reconstruction *Bissula* (15.8 m, 5.1 m beam, 100 m² square sail, two steering oars, the swan's-neck sternpost) | `src/assets/models/laurons.glb` | 0.5 MB |
 | Bac à voile (Arcachon) | Meshy, cut with `scripts/boats/bac-meshy.mjs` (45 MB; hull widened from 2.6 to 3.5 m) | `src/assets/models/bac.glb` | 2.3 MB |
 
 The SingraroTejo versions (184 MB and 290 MB) are too heavy for the web.

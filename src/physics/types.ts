@@ -84,6 +84,8 @@ export interface BoatSpec {
   description: string;
   /** The waters the boat belongs to (default 'tejo'): it sails there as traffic. */
   home?: string;
+  /** 'ancient': a ship of antiquity, offered only in the ancient areas (Delos, 88 BC). */
+  era?: 'ancient';
   length: number;
   beam: number;
   draft: number;

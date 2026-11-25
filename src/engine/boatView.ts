@@ -47,6 +47,7 @@ export class BoatView {
   readonly hullProfile: HullProfile;
   private readonly sails = new Map<string, Pivot>();
   private rudder?: Pivot;
+  private rudder2?: Pivot;
   private heave = 0;
   /** Sheets: clew markers (moving with their sail) and where each rope ends on the boat. */
   private readonly sheetRigs: { sail: string; clew: TransformNode; ends: TransformNode[]; horse: boolean }[] = [];
@@ -121,6 +122,7 @@ export class BoatView {
       this.sails.set(sv.sail, p);
     }
     this.rudder = makePivot(`${spec.id}-rudder`, visual.rudder);
+    if (visual.rudder2) this.rudder2 = makePivot(`${spec.id}-rudder2`, visual.rudder2);
 
     for (const n of visual.hiddenNodes ?? []) byName.get(n)?.setEnabled(false);
     this.buildSheets(scene, gltfRoot as unknown as TransformNode);
@@ -456,8 +458,9 @@ export class BoatView {
     for (const p of this.sails.values()) p.node.computeWorldMatrix(true);
     this.updateSheets((id) => reports.get(id)?.active ?? true);
     this.updateAnchorCable();
-    if (this.rudder) {
-      Quaternion.RotationAxisToRef(this.rudder.axis, (rudder * spec.rudder.maxAngleDeg * Math.PI) / 180, this.rudder.node.rotationQuaternion!);
+    for (const r of [this.rudder, this.rudder2]) {
+      if (!r) continue;
+      Quaternion.RotationAxisToRef(r.axis, (rudder * spec.rudder.maxAngleDeg * Math.PI) / 180, r.node.rotationQuaternion!);
     }
   }
 

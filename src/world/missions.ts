@@ -183,8 +183,8 @@ export const AREA_MISSIONS: Record<AreaId, { courses: RegattaCourse[]; routes: R
   delos: {
     courses: [],
     routes: [
-      { id: 'mykonos-delos', from: 'Mykonos', to: 'Delos', boat: 'baleeiro', description: t('route.mykonos-delos') },
-      { id: 'delos-rheneia', from: 'Delos', to: 'Rheneia', boat: 'baleeiro', description: t('route.delos-rheneia') },
+      { id: 'mykonos-delos', from: 'Mykonos', to: 'Delos', boat: 'laurons', description: t('route.mykonos-delos') },
+      { id: 'delos-rheneia', from: 'Delos', to: 'Rheneia', boat: 'laurons', description: t('route.delos-rheneia') },
     ],
     grounds: [],
   },

@@ -69,7 +69,9 @@ const input = new Input();
 const wind = new GustyWind(0, 12 * 0.514444, 0, 0); // 12 knots
 let gusty = false;
 const views = new Map<string, BoatView>();
-let spec: BoatSpec = BOATS.find((b) => b.id === AREA.boat) ?? BOATS[0];
+/** The boats of this area's age: today's boats, or the ships of antiquity (Delos). */
+const AREA_BOATS = BOATS.filter((b) => (b.era === 'ancient') === !!AREA.ancient);
+let spec: BoatSpec = AREA_BOATS.find((b) => b.id === AREA.boat) ?? AREA_BOATS[0];
 let sim = new SailboatSim(spec, wind, { heading: START_HEADING });
 let view: BoatView;
 let mask: LandMask;
@@ -94,7 +96,7 @@ let timeScale = EDITION.timeScale;
 /** Difficulty: easy trims the sails automatically; hard turns off the balanced sails and
  * the help with tacking that comes with them. */
 let level: Level = loadLevel();
-let mission: Mission = makeMission('free', 'Lisboa', BOATS[0].id, BOATS);
+let mission: Mission = makeMission('free', 'Lisboa', AREA_BOATS[0].id, AREA_BOATS);
 /** The shoals of the fishing ground, during a fishing trip. */
 let fishing: FishingGround | null = null;
 /** Clean-up: the rubbish to pick up. */
@@ -135,7 +137,7 @@ const ARRIVAL_RADIUS = 150; // m
 let paused = false;
 let time = 0;
 
-const hud = new SailingHud(document.getElementById('hud')!, BOATS, {
+const hud = new SailingHud(document.getElementById('hud')!, AREA_BOATS, {
   onBoat: (id) => void switchBoat(id),
   onMode: (id) => setMode(id),
   onSheet: (g, v) => (sim.controls.sheets[g] = v),
@@ -225,7 +227,7 @@ function loadView(id: string): Promise<BoatView> {
 }
 
 /** The boat last asked for (may still be loading). */
-let wanted = BOATS[0].id;
+let wanted = AREA_BOATS[0].id;
 
 async function switchBoat(id: string): Promise<void> {
   if (requiredBoat && id !== requiredBoat) return;
@@ -337,8 +339,8 @@ input.onPress('KeyM', cycleMode);
 input.onPress('KeyL', () => toggleAnchor());
 input.onPress('KeyB', () => {
   if (requiredBoat) return;
-  const i = BOATS.findIndex((b) => b.id === wanted);
-  void switchBoat(BOATS[(i + 1) % BOATS.length].id);
+  const i = AREA_BOATS.findIndex((b) => b.id === wanted);
+  void switchBoat(AREA_BOATS[(i + 1) % AREA_BOATS.length].id);
 });
 input.onPress('KeyP', () => (paused = !paused));
 input.onPress('KeyJ', () => hud.toggleSettings());
@@ -423,7 +425,7 @@ function anchorBoat(id: string, x: number, y: number): void {
     else v.dispose();
   });
 }
-const menu = new MissionMenu(document.getElementById('hud')!, BOATS, readBest, (m, l) => void startMission(m, l), level);
+const menu = new MissionMenu(document.getElementById('hud')!, AREA_BOATS, readBest, (m, l) => void startMission(m, l), level);
 
 function loadLevel(): Level {
   try {

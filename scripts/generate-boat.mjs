@@ -132,6 +132,7 @@ const X = (s) => s - L / 2; // s (aft of bow) -> model x
 
 /** A mesh from positions and triangles (smooth normals). parts: [{ material, indices }]. */
 function addMesh(name, positions, parts, normals) {
+  if (!positions.length) return; // nothing to draw (e.g. no thwarts)
   const pos = new Float32Array(positions.flat());
   const nrm = normals ? new Float32Array(normals.flat()) : smoothNormals(pos, parts.flatMap((p) => p.indices));
   const posAcc = doc.createAccessor().setType('VEC3').setArray(pos).setBuffer(buffer);
@@ -169,6 +170,7 @@ function smoothNormals(pos, idx) {
 
 /** Flat-shaded mesh from a list of triangles [[p, q, r], ...] (counter-clockwise = outside). */
 function addFlat(name, tris, mat) {
+  if (!tris.length) return;
   const positions = [];
   const normals = [];
   const indices = [];
@@ -411,6 +413,31 @@ for (const m of P.masts) {
 for (const sp of P.spars ?? []) spar(sp.name, sp.from, sp.to, sp.radius, sp.radius * 0.6, spars);
 
 for (const sl of P.sails) {
+  if (sl.type === 'square') {
+    // A square sail set across the boat, on a yard at the mast: `s` where it hangs (just ahead
+    // of the mast), the yard's height `head` and length `width`, the foot's height `foot` and
+    // width `footWidth`. It bellies forward. Drawn across the hull: in the game its rest angle
+    // is 90 degrees (boatVisuals.ts).
+    const { s: ss, head, foot, width, footWidth = width } = sl;
+    spar(sl.yardName, [ss, head, -width / 2 - 0.3], [ss, head, width / 2 + 0.3], sl.yardRadius * 0.5, sl.yardRadius * 0.5, spars, sl.yardRadius);
+    const n = 12;
+    const positions = [];
+    for (let i = 0; i <= n; i++)
+      for (let j = 0; j <= n; j++) {
+        const u = i / n; // across, starboard to port
+        const v = j / n; // head (yard) to foot
+        const half = lerp(width, footWidth, v) / 2;
+        const belly = (sl.belly ?? 0) * Math.sin(Math.PI * u) * Math.sin(Math.PI * Math.min(1, v * 1.1));
+        positions.push([X(ss - 0.12 - belly), lerp(head, foot, v), -half + 2 * half * u]);
+      }
+    const [, idx] = [...gridIndices(n + 1, n + 1, 0, false)][0];
+    addMesh(sl.sailName, positions, [{ material: canvas, indices: idx }]);
+    const area = ((width + footWidth) / 2) * (head - foot);
+    // Height of the centroid of the trapezium.
+    const cy = foot + ((head - foot) * (footWidth + 2 * width)) / (3 * (width + footWidth));
+    report.sails.push({ id: sl.id, mast: sl.mast, area, cs: ss, cy, clew: [X(ss), foot, footWidth / 2] });
+    continue;
+  }
   const { throat, peak, clew, tack } = sl.corners;
   const z = sl.z;
   // Yard from throat to peak, thickest near the mast.
@@ -456,9 +483,18 @@ const R = P.rudder;
   // Plate between the pin line and the trailing edge.
   const t2 = outline.map((p) => p);
   const b2 = outline.map(([, y]) => [lead + (R.pin.rake ?? 0) * (y - pinBot[1]), y]);
-  addFlat('Leme', plateTris(b2, t2, 0.06), material('Wale', C.wale));
+  // Steering oars on both quarters (`z`: their distance from the centreline), or one rudder
+  // on the sternpost.
+  const sides = R.z ? [R.z, -R.z] : [0];
+  sides.forEach((z, k) => {
+    const suffix = k ? '_2' : '';
+    addFlat(`Leme${suffix}`, plateTris(b2, t2, R.thickness ?? 0.06, z), material('Wale', C.wale));
+    const [fs, fy, fz] = R.tiller.from;
+    const [ts, ty, tz] = R.tiller.to;
+    const flip = z < 0 ? -1 : 1;
+    spar(`Cana${suffix}`, [fs, fy, z + flip * fz], [ts, ty, z + flip * tz], R.tiller.radius, R.tiller.radius * 0.7, spars);
+  });
   void pinTop;
-  spar('Cana', R.tiller.from, R.tiller.to, R.tiller.radius, R.tiller.radius * 0.7, spars);
 }
 
 // Rudder area and centre (from the outline).
@@ -496,7 +532,7 @@ console.log({
   cgX_model: f(X(sCG)),
   lateralArea: f(latA),
   lateralCentre_fwdOfCG: f(sCG - latM / latA),
-  rudder: { area: f(rArea), x: f(sCG - rMom / Math.max(rArea, 1e-9)) },
+  rudder: { area: f(rArea), x: f(sCG - rMom / Math.max(rArea, 1e-9)), ...(R.z ? { blades: 2 } : {}) },
   sails: report.sails.map((s) => {
     const m = report.masts[s.mast].base;
     return { id: s.id, area: f(s.area), pivotFwd: f(sCG - m[0]), ceDistance: f(s.cs - m[0]), ceHeight: f(s.cy), clew: s.clew.map(f) };

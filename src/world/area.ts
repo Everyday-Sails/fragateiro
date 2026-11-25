@@ -10,6 +10,8 @@ export interface AreaInfo {
   ports: string[];
   /** Boat picked when the game opens here. */
   boat: string;
+  /** A past age (Delos, 88 BC): only the ships of that time are offered (BoatSpec.era). */
+  ancient?: boolean;
   /** The Tagus wildlife (dolphins up to Lisbon, orcas offshore). Landmarks: mapView.ts. */
   tagusExtras: boolean;
   /** Metres between land vertices near the camera (default 50; a narrow river needs 10). */
@@ -111,7 +113,8 @@ export const AREAS: Record<AreaId, AreaInfo> = {
   delos: {
     id: 'delos',
     ports: ['Delos', 'Rheneia', 'Mykonos'],
-    boat: 'baleeiro', // for now: no ancient ship yet
+    boat: 'laurons',
+    ancient: true,
     tagusExtras: false,
     extraPlaces: [
       { name: 'Delos', kind: 'town', lat: 37.4003, lon: 25.2668 }, // the Sacred Harbour, west coast
