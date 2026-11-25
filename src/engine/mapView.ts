@@ -49,6 +49,7 @@ import { LandMask, type MapMeta } from '../world/landMask';
 import { GridCurrent, type CurrentGridMeta } from '../physics';
 import { Terrain, type HeightsMeta } from '../world/terrain';
 import { createLandmarks, type BridgeLine } from './landmarks';
+import { Trees } from './trees';
 import { createArcachonLandmarks } from './landmarksArcachon';
 import { createLighthouses, type LighthouseInfo } from './lighthouses';
 import { createBuoy, seaMarkStyle } from './buoys';
@@ -64,7 +65,7 @@ export interface SeaMark {
   y: number;
 }
 
-export type TagusMeta = MapMeta & { seamarks?: SeaMark[]; source: string; heights?: HeightsMeta & { source: string }; bridges?: Record<string, BridgeLine>; lighthouses?: LighthouseInfo[] };
+export type TagusMeta = MapMeta & { seamarks?: SeaMark[]; source: string; heights?: HeightsMeta & { source: string }; cover?: { cellSize: number; width: number; height: number; source: string }; bridges?: Record<string, BridgeLine>; lighthouses?: LighthouseInfo[] };
 const FILES: Record<AreaId, { meta: unknown; mask: string; height: string }> = {
   tejo: { meta: tagusJson, mask: tagusMask, height: tagusHeight },
   arcachon: { meta: arcachonJson, mask: arcachonMask, height: arcachonHeight },
@@ -81,6 +82,10 @@ const heightUrl = FILES[AREA.id].height;
 /** The open area's map: grid, places, sea marks, heights. */
 export const MAP_META = FILES[AREA.id].meta as TagusMeta;
 addExtraPlaces(MAP_META, AREA.extraPlaces);
+
+/** Land cover (scripts/fetch-landcover.mjs), for the areas that have it. */
+const COVERS = import.meta.glob<string>('../assets/map/*-cover.png', { query: '?url', import: 'default', eager: true });
+const coverUrl: string | undefined = COVERS[`../assets/map/${AREA.id === 'tejo' ? 'tagus' : AREA.id}-cover.png`];
 
 /** Flats that dry at low tide (scripts/fetch-flats.mjs), for the areas that have them. */
 const FLATS = import.meta.glob<string>('../assets/map/*-flats.png', { query: '?url', import: 'default', eager: true });
@@ -172,6 +177,10 @@ void main() {
 Effect.ShadersStore.landFragmentShader = /* glsl */ `
 precision highp float;
 uniform sampler2D mask;
+uniform sampler2D cover;
+uniform float hasCover;
+uniform vec2 northWest;
+uniform vec2 coverSize;
 uniform vec3 cameraPosition;
 uniform vec3 skyColor;
 uniform vec3 sunDirection;
@@ -216,12 +225,39 @@ void main() {
   vec3 pine = vec3(0.20, 0.27, 0.16);
   vec3 rock = vec3(0.60, 0.57, 0.50);
   vec3 sand = vec3(0.80, 0.75, 0.60);
-  vec3 color = mix(dryGrass, greenField, smoothstep(0.45, 0.62, big));
-  color = mix(color, soil, smoothstep(0.62, 0.72, small) * 0.7);
-  color = mix(color, scrub, smoothstep(0.5, 0.7, small) * smoothstep(0.35, 0.55, big) * 0.6);
-  // Woods: more of them on higher ground.
-  float wood = smoothstep(0.55, 0.7, big + 0.25 * smoothstep(30.0, 150.0, vWorld.y) + 0.15 * (small - 0.5));
-  color = mix(color, pine, wood * 0.85);
+  vec3 color;
+  if (hasCover > 0.5) {
+    // Painted from the real land cover (ESA WorldCover): the share of town, trees and fields
+    // in each 40 m cell; the rest is dry grass, scrub and bare ground.
+    vec2 cUV = vec2((vWorld.x - northWest.x) / coverSize.x, 1.0 - (northWest.y - vWorld.z) / coverSize.y);
+    vec3 cv = texture2D(cover, cUV).rgb;
+    // Houses stand on gentle ground: on steep slopes (cliffs, valley sides) leave the scrub.
+    cv.r *= 1.0 - smoothstep(0.12, 0.3, slope);
+    float rest = max(0.0, 1.0 - cv.r - cv.g - cv.b);
+    // Open ground: dry grass, with scrub and bare soil in patches.
+    vec3 open = mix(dryGrass, scrub, smoothstep(0.5, 0.7, small) * 0.7);
+    open = mix(open, soil, smoothstep(0.62, 0.72, big) * 0.5);
+    // Fields: a patchwork of green crops and golden stubble, parcels of about 150 m.
+    float parcel = hash(floor(p / 150.0 + vec2(0.37, 0.71)));
+    vec3 field = mix(greenField, vec3(0.70, 0.62, 0.36), step(0.5, parcel));
+    field = mix(field, soil, step(0.85, parcel) * 0.6);
+    // Woods: dark pines, a little lighter here and there (eucalyptus, cork oaks).
+    vec3 trees = mix(pine, vec3(0.28, 0.35, 0.20), smoothstep(0.4, 0.7, small));
+    // Towns from afar: white walls and terracotta roofs in patches, shadowed here and there.
+    // The detail fades with distance, where it would only shimmer.
+    float near = 1.0 - smoothstep(800.0, 4000.0, length(cameraPosition - vWorld));
+    float roof = mix(0.5, noise(p * 0.07), near);
+    vec3 town = mix(vec3(0.80, 0.78, 0.73), vec3(0.62, 0.42, 0.34), smoothstep(0.45, 0.7, roof));
+    town *= mix(1.0, 0.85 + 0.15 * noise(p * 0.25 + 5.0), near);
+    color = (town * cv.r + trees * cv.g + field * cv.b + open * rest) / max(0.001, cv.r + cv.g + cv.b + rest);
+  } else {
+    color = mix(dryGrass, greenField, smoothstep(0.45, 0.62, big));
+    color = mix(color, soil, smoothstep(0.62, 0.72, small) * 0.7);
+    color = mix(color, scrub, smoothstep(0.5, 0.7, small) * smoothstep(0.35, 0.55, big) * 0.6);
+    // Woods: more of them on higher ground.
+    float wood = smoothstep(0.55, 0.7, big + 0.25 * smoothstep(30.0, 150.0, vWorld.y) + 0.15 * (small - 0.5));
+    color = mix(color, pine, wood * 0.85);
+  }
   // Steep ground (cliffs, valley sides) shows bare rock.
   color = mix(color, rock, smoothstep(0.25, 0.5, slope));
   // A narrow strip of sand along low shores only (not on quays, cliffs or high ground).
@@ -354,6 +390,8 @@ export interface MapView {
   setTarget(p: { x: number; y: number } | null): void;
   /** Low tide: show the drying flats (areas that have them). */
   setLowTide(low: boolean): void;
+  /** Trees drawn now (for checks). */
+  readonly treeCount: number;
 }
 
 export function createMapView(scene: Scene, mask: LandMask, skyColor: Color3, sunDirection: Vector3, fogDensity: number, labelNames?: string[], terrain?: Terrain): MapView {
@@ -366,10 +404,21 @@ export function createMapView(scene: Scene, mask: LandMask, skyColor: Color3, su
   tex.wrapU = tex.wrapV = Texture.CLAMP_ADDRESSMODE;
   const mat = new ShaderMaterial('landMat', scene, { vertex: 'land', fragment: 'land' }, {
     attributes: ['position', 'normal'],
-    uniforms: ['world', 'viewProjection', 'northWest', 'size', 'cameraPosition', 'skyColor', 'sunDirection', 'sunColor', 'fogDensity'],
-    samplers: ['mask'],
+    uniforms: ['world', 'viewProjection', 'northWest', 'size', 'cameraPosition', 'skyColor', 'sunDirection', 'sunColor', 'fogDensity', 'hasCover', 'coverSize'],
+    samplers: ['mask', 'cover'],
   });
   mat.setTexture('mask', tex);
+  const cover = MAP_META.cover;
+  if (coverUrl && cover) {
+    const coverTex = new Texture(coverUrl, scene, false, true, Texture.BILINEAR_SAMPLINGMODE);
+    coverTex.wrapU = coverTex.wrapV = Texture.CLAMP_ADDRESSMODE;
+    mat.setTexture('cover', coverTex);
+    mat.setVector2('coverSize', new Vector2(cover.width * cover.cellSize, cover.height * cover.cellSize));
+  } else {
+    mat.setTexture('cover', tex); // unused
+    mat.setVector2('coverSize', new Vector2(width, height));
+  }
+  mat.setFloat('hasCover', coverUrl && cover ? 1 : 0);
   mat.setVector2('northWest', new Vector2(mask.meta.northWest.x, mask.meta.northWest.y));
   mat.setVector2('size', new Vector2(width, height));
   mat.setColor3('skyColor', skyColor);
@@ -471,6 +520,17 @@ export function createMapView(scene: Scene, mask: LandMask, skyColor: Color3, su
   }
   marker.setEnabled(false);
   const mud = createMud(scene, mask, skyColor, sunDirection, fogDensity);
+  // Trees where the land cover has woods (loaded after the rest, in the background).
+  let trees: Trees | undefined;
+  if (coverUrl && cover) {
+    imagePixels(coverUrl)
+      .then(({ rgba }) => {
+        const share = new Uint8Array(cover.width * cover.height);
+        for (let i = 0; i < share.length; i++) share[i] = rgba[i * 4 + 1];
+        trees = new Trees(scene, { cellSize: cover.cellSize, width: cover.width, height: cover.height, northWest: mask.meta.northWest, trees: share }, mask, terrain);
+      })
+      .catch((e) => console.warn('no trees:', e));
+  }
 
   return {
     setLowTide(low) {
@@ -480,8 +540,12 @@ export function createMapView(scene: Scene, mask: LandMask, skyColor: Color3, su
       marker.setEnabled(!!p);
       if (p) marker.position.set(p.x, 0, p.y);
     },
+    get treeCount() {
+      return trees?.count ?? 0;
+    },
     update(time, camera) {
       updateTiles(camera);
+      trees?.update(camera);
       if (marker.isEnabled()) {
         const d = Vector3.Distance(camera.globalPosition, marker.position);
         const k = Math.max(1, d / 110);

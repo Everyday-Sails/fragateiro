@@ -1377,5 +1377,11 @@
       "colours": [],
       "pattern": ""
     }
-  ]
+  ],
+  "cover": {
+    "source": "ESA WorldCover 10 m 2021 v200 (© ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium; CC BY 4.0)",
+    "cellSize": 40,
+    "width": 810,
+    "height": 360
+  }
 }

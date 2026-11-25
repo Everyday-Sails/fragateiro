@@ -411,3 +411,12 @@ button.loading { animation: boat-loading 0.9s ease-in-out infinite alternate; cu
   .banner { right: 108px; }
 }
 .options .build { color: var(--muted); font-size: 11px; margin: 6px 0 0; }
+
+/* ---- The back button (top left): stops the game and opens its menu. The chart moves right. -- */
+.back-btn { position: absolute; top: 16px; left: 16px; width: 46px; height: 46px; padding: 0; border-radius: 50% !important; display: grid; place-items: center; color: var(--brass); pointer-events: auto; z-index: 2; }
+.info { left: 74px; }
+@media (max-width: 900px) {
+  .back-btn { top: 12px; left: 12px; }
+  .map-toggle { top: 66px; }
+  .settings-toggle { top: 120px !important; }
+}

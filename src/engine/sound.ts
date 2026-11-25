@@ -23,7 +23,8 @@ export class Sound {
   private whistle?: BiquadFilterNode;
   private rushGain?: GainNode;
   private flapGain?: GainNode;
-  private muted = false;
+  /** The game starts silent; the player turns the sound on (N, or the settings). */
+  private muted = true;
   private t = 0;
 
   constructor() {

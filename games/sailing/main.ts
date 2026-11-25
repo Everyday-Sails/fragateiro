@@ -179,6 +179,10 @@ const hud = new SailingHud(document.getElementById('hud')!, BOATS, {
     paused = true;
     menu.show();
   },
+  onStop: () => {
+    paused = true;
+    menu.show();
+  },
   onWindVisible: (on) => windView.setVisible(on),
   onSound: (on) => sound.setMuted(!on),
   onTraffic: (on) => {
@@ -852,7 +856,7 @@ async function main(): Promise<void> {
   else if (game && place !== undefined) void startMission(game.mission(BOATS, boat, place), level);
   else menu.show();
   // Handy in the browser console and for automated checks.
-  Object.assign(window, { game: { get wildlife() { return wildlife; }, netSweep, get fishing() { return fishing; }, get trash() { return trash; }, get hunt() { return hunt; }, get supply() { return supply; }, get anchored() { return anchored; }, get run() { return run; }, get drill() { return drill; }, get sim() { return sim; }, camera, scene, cameraRig, mask, destinations, teleport, views, switchBoat, get traffic() { return traffic; } } });
+  Object.assign(window, { game: { get wildlife() { return wildlife; }, netSweep, get fishing() { return fishing; }, get trash() { return trash; }, get hunt() { return hunt; }, get supply() { return supply; }, get anchored() { return anchored; }, get run() { return run; }, get drill() { return drill; }, get sim() { return sim; }, camera, scene, cameraRig, mask, destinations, teleport, views, switchBoat, get traffic() { return traffic; }, get mapView() { return mapView; } } });
 
   engine.runRenderLoop(() => {
     const dt = Math.min(engine.getDeltaTime() / 1000, 0.1);
