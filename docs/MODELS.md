@@ -41,6 +41,11 @@ Parts of a mesh can also be moved into a node of their own (same material and te
 node scripts/split-part.mjs canoa.glb canoa.glb Vela Vela_deck "y < 1.3"
 # The Fragata's hanging anchor and its chain over the bow, hidden while the anchor is down
 node scripts/split-part.mjs fragata.glb fragata.glb correntes.002 Ancora "x > 890 && y < 268"
+# The Moliceiro's forestay (it ran into the sail's mesh), a fitting at its foot and a piece
+# of the stern
+node scripts/split-part.mjs moliceiro.glb moliceiro.glb Vela Vela_estai "y > 0.8 && y < 11.5 && Math.abs(x - (-4.33 + 0.521 * (y - 3))) < 0.2"
+node scripts/split-part.mjs moliceiro.glb moliceiro.glb Vela Vela_proa "x < -4.4 && y < 1.45"
+node scripts/split-part.mjs moliceiro.glb moliceiro.glb Vela Vela_popa "x > 7.3 && x < 7.8 && y < 1.3"
 ```
 
 ### The anchor
