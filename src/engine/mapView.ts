@@ -50,6 +50,7 @@ import { GridCurrent, type CurrentGridMeta } from '../physics';
 import { Terrain, type HeightsMeta } from '../world/terrain';
 import { createLandmarks, type BridgeLine } from './landmarks';
 import { Trees } from './trees';
+import { Houses } from './houses';
 import { createArcachonLandmarks } from './landmarksArcachon';
 import { createLighthouses, type LighthouseInfo } from './lighthouses';
 import { createBuoy, seaMarkStyle } from './buoys';
@@ -390,8 +391,11 @@ export interface MapView {
   setTarget(p: { x: number; y: number } | null): void;
   /** Low tide: show the drying flats (areas that have them). */
   setLowTide(low: boolean): void;
-  /** Trees drawn now (for checks). */
+  /** Trees and houses drawn now (for checks). */
   readonly treeCount: number;
+  readonly houseCount: number;
+  /** How far out trees and houses are drawn, m (0: none): the graphics setting. */
+  setDetail(treeRange: number, houseRange: number): void;
 }
 
 export function createMapView(scene: Scene, mask: LandMask, skyColor: Color3, sunDirection: Vector3, fogDensity: number, labelNames?: string[], terrain?: Terrain): MapView {
@@ -520,16 +524,28 @@ export function createMapView(scene: Scene, mask: LandMask, skyColor: Color3, su
   }
   marker.setEnabled(false);
   const mud = createMud(scene, mask, skyColor, sunDirection, fogDensity);
-  // Trees where the land cover has woods (loaded after the rest, in the background).
+  // Trees and houses where the land cover has woods and towns (made after the rest, in the
+  // background). Their distances follow the graphics setting.
   let trees: Trees | undefined;
+  let houses: Houses | undefined;
+  let ranges = { trees: 0, houses: 0 };
   if (coverUrl && cover) {
     imagePixels(coverUrl)
       .then(({ rgba }) => {
-        const share = new Uint8Array(cover.width * cover.height);
-        for (let i = 0; i < share.length; i++) share[i] = rgba[i * 4 + 1];
-        trees = new Trees(scene, { cellSize: cover.cellSize, width: cover.width, height: cover.height, northWest: mask.meta.northWest, trees: share }, mask, terrain);
+        const n = cover.width * cover.height;
+        const built = new Uint8Array(n);
+        const woods = new Uint8Array(n);
+        for (let i = 0; i < n; i++) {
+          built[i] = rgba[i * 4];
+          woods[i] = rgba[i * 4 + 1];
+        }
+        const grid = { cellSize: cover.cellSize, width: cover.width, height: cover.height, northWest: mask.meta.northWest, built, trees: woods };
+        trees = new Trees(scene, grid, mask, terrain, ranges.trees);
+        // Landmarks and lighthouses keep their ground clear of houses.
+        const clear = [...landmarks, ...lighthouses].map((l) => ({ x: l.x, y: l.y, r: 90 }));
+        houses = new Houses(scene, grid, mask, terrain, ranges.houses, clear);
       })
-      .catch((e) => console.warn('no trees:', e));
+      .catch((e) => console.warn('no trees or houses:', e));
   }
 
   return {
@@ -543,9 +559,18 @@ export function createMapView(scene: Scene, mask: LandMask, skyColor: Color3, su
     get treeCount() {
       return trees?.count ?? 0;
     },
+    get houseCount() {
+      return houses?.count ?? 0;
+    },
+    setDetail(treeRange, houseRange) {
+      ranges = { trees: treeRange, houses: houseRange };
+      trees?.setRange(treeRange);
+      houses?.setRange(houseRange);
+    },
     update(time, camera) {
       updateTiles(camera);
       trees?.update(camera);
+      houses?.update(camera);
       if (marker.isEnabled()) {
         const d = Vector3.Distance(camera.globalPosition, marker.position);
         const k = Math.max(1, d / 110);

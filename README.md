@@ -207,8 +207,11 @@ plateau rise behind the shore, and the camera stays above the ground. The land i
 4 km tiles, detailed only near the camera, and painted from the land cover of ESA WorldCover
 (`scripts/fetch-landcover.mjs`, `<area>-cover.png`: the share of town, trees and fields in each
 40 m cell): towns in white and terracotta, woods dark green, fields in a patchwork. Near the
-camera (2.2 km) the woods have trees, two simple shapes drawn as instances
-(`src/engine/trees.ts`). The Tagus bridges follow their OpenStreetMap deck
+camera the woods have trees and the towns houses (`src/engine/trees.ts`, `houses.ts`): simple
+shapes drawn as instances, houses in rows along streets, blocks of flats where the town is
+dense. The settings' **Graphics** option (low, medium, high; phones start on low) sets how far
+out they are drawn (none, about 1 km, about 2 km) and the rendering resolution
+(`src/engine/graphics.ts`). The Tagus bridges follow their OpenStreetMap deck
 lines (`bridges` in `tagus.json`); all landmarks are built from simple shapes in
 `src/engine/landmarks.ts`. The areas' bounds are in `scripts/map-areas.mjs`; to add or change
 one, edit it and run the **Update map data** workflow (Actions tab) with the area's id, or

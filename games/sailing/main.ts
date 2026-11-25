@@ -11,6 +11,7 @@ import { CAMERA_VIEWS, CameraRig } from '../../src/engine/cameraRig';
 import { ForceArrows } from '../../src/engine/forceArrows';
 import { Input } from '../../src/engine/input';
 import { TouchControls, isTouchDevice } from '../../src/engine/touchControls';
+import { graphicsSettings, loadGraphicsLevel, saveGraphicsLevel, type GraphicsLevel } from '../../src/engine/graphics';
 import { createMapView, loadCurrent, loadMapMask, type MapView } from '../../src/engine/mapView';
 import { getArea, toMapXY } from '../../src/world/area';
 import { getEdition } from '../../src/world/edition';
@@ -179,6 +180,7 @@ const hud = new SailingHud(document.getElementById('hud')!, BOATS, {
     paused = true;
     menu.show();
   },
+  onGraphics: (level) => applyGraphics(level as GraphicsLevel),
   onStop: () => {
     paused = true;
     menu.show();
@@ -267,6 +269,14 @@ function cycleMode(): void {
 const ANCHOR_RODE = 25;
 
 /** Drop the anchor where the bow is, or weigh it. */
+/** The graphics setting: resolution, and how far out trees and houses are drawn. */
+function applyGraphics(level: GraphicsLevel): void {
+  saveGraphicsLevel(level);
+  const g = graphicsSettings(level, window.devicePixelRatio || 1);
+  scene.getEngine().setHardwareScalingLevel(g.pixelScale);
+  mapView?.setDetail(g.treeRange, g.houseRange);
+}
+
 function toggleAnchor(): void {
   if (anchorDown) {
     weighAnchor();
@@ -779,6 +789,7 @@ async function main(): Promise<void> {
   terrain = map.terrain;
   await document.fonts.ready; // labels and minimap are drawn once, with the period font
   mapView = createMapView(scene, mask, skyColor, sunDirection, fogDensity, AREA.ports, map.terrain);
+  applyGraphics(loadGraphicsLevel());
   const s0 = AREA.start ? toMapXY(mask.meta.origin, AREA.start) : { x: 0, y: 0 };
   start = mask.nearestWater(s0.x, s0.y);
   mask.markReachableFrom(start.x, start.y);
