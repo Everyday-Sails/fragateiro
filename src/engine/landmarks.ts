@@ -479,9 +479,17 @@ export function createLandmarks(
     const g = ground(x, y);
     const castle = material(scene, 'castle', '#c4b394');
     const pieces: Mesh[] = [];
-    const box = (cx: number, cy: number, cz: number, w: number, h: number, d: number) => {
-      const b = MeshBuilder.CreateBox('castle-part', { width: w, height: h, depth: d }, scene);
-      b.position.set(x + cx, g + cy, y + cz);
+    // The hill falls away under the castle, and from afar the land is drawn with points 250 m
+    // apart, which cuts off the hilltop: walls and towers reach down to the lowest ground
+    // around, so they never hang in the air (the extra part is underground close to).
+    let lowest = g;
+    for (let dx = -250; dx <= 250; dx += 25) for (let dz = -250; dz <= 250; dz += 25) lowest = Math.min(lowest, ground(x + dx, y + dz));
+    const box = (cx: number, cy: number, cz: number, w: number, h: number, d: number, footed = false) => {
+      let bottom = cy - h / 2;
+      const top = cy + h / 2;
+      if (footed) bottom = Math.min(bottom, lowest - g - 2);
+      const b = MeshBuilder.CreateBox('castle-part', { width: w, height: top - bottom, depth: d }, scene);
+      b.position.set(x + cx, g + (top + bottom) / 2, y + cz);
       pieces.push(b);
     };
     const W = 130; // east-west
@@ -489,7 +497,7 @@ export function createLandmarks(
     const H = 12;
     // Curtain walls with battlements.
     for (const [cx, cz, w, d] of [[0, -D / 2, W, 3], [0, D / 2, W, 3], [-W / 2, 0, 3, D], [W / 2, 0, 3, D]]) {
-      box(cx, H / 2 - 3, cz, w, H + 6, d);
+      box(cx, H / 2 - 3, cz, w, H + 6, d, true);
       const along = w > d;
       const len = along ? w : d;
       for (let t = -len / 2 + 1.5; t < len / 2; t += 3) box(cx + (along ? t : 0), H + 3.7, cz + (along ? 0 : t), along ? 1.5 : 3.2, 1.6, along ? 3.2 : 1.5);
@@ -502,7 +510,7 @@ export function createLandmarks(
     ];
     for (const [cx, cz, s] of towers) {
       const th = H + 8 + (s > 9 ? 6 : 0);
-      box(cx, th / 2 - 3, cz, s, th + 6, s);
+      box(cx, th / 2 - 3, cz, s, th + 6, s, true);
       for (const [dx, dz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) box(cx + (dx * (s - 1.4)) / 2, th + 3.8, cz + (dz * (s - 1.4)) / 2, 1.4, 1.6, 1.4);
     }
     merged('castelo', pieces, castle);

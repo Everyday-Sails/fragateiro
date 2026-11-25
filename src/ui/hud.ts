@@ -1,5 +1,6 @@
 // On-screen display for the sailing games: plain HTML/CSS on top of the 3D canvas.
 import { canFullscreen, canInstall, install, isFullscreen, isInstalled, isIos, onInstallChange, toggleFullscreen } from './app';
+import { loadGraphicsLevel } from '../engine/graphics';
 import { getArea } from '../world/area';
 import { getEdition } from '../world/edition';
 import './hud.css';
@@ -32,6 +33,8 @@ export interface HudCallbacks {
   onTide(id: string): void;
   /** Stop the game and go back to its menu (the back button at the top). */
   onStop(): void;
+  /** The graphics setting: 'low', 'medium' or 'high'. */
+  onGraphics(level: string): void;
   /** Toggle the fishing mode (boats with a net: the Muleta). */
   onFish(): void;
   /** Drop the anchor or weigh it. */
@@ -259,6 +262,11 @@ export class SailingHud {
         <option value="ebb">${t('opts.ebb')}</option>
         <option value="flood">${t('opts.flood')}</option>
       </select></label>
+      <label>${t('opts.graphics')} <select name="graphics">
+        <option value="low">${t('opts.gLow')}</option>
+        <option value="medium">${t('opts.gMedium')}</option>
+        <option value="high">${t('opts.gHigh')}</option>
+      </select></label>
       <label>${t('opts.timeOfDay')} <select name="timeOfDay">
         <option value="sunrise">${t('opts.sunrise')}</option>
         <option value="day">${t('opts.day')}</option>
@@ -352,6 +360,12 @@ export class SailingHud {
     current.addEventListener('change', () => {
       current.blur();
       cb.onCurrent(current.value);
+    });
+    const graphics = opts.querySelector<HTMLSelectElement>('[name=graphics]')!;
+    graphics.value = loadGraphicsLevel();
+    graphics.addEventListener('change', () => {
+      graphics.blur();
+      cb.onGraphics(graphics.value);
     });
     const tod = opts.querySelector<HTMLSelectElement>('[name=timeOfDay]')!;
     tod.value = loadTimeOfDay();
