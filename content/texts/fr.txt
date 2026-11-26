@@ -155,6 +155,7 @@ opts.gameSpeed = Vitesse du jeu
 opts.ts1 = 1× temps réel
 opts.tsN = {n}× plus vite
 opts.keys = J : ce panneau · M : changer de mode · B : changer de bateau · N : son · P : pause · R : recommencer
+opts.pad = Manette Xbox : croix directionnelle barre · stick droit écoutes · stick gauche zoom (↑↓) et vue (←→) · A ancre · B menu · X mode · Y bateau · ☰ pause · ⧉ réglages
 opts.language = Langue
 opts.version = Version
 opts.narration = Narration

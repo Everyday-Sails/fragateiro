@@ -420,3 +420,6 @@ button.loading { animation: boat-loading 0.9s ease-in-out infinite alternate; cu
   .map-toggle { top: 66px; }
   .settings-toggle { top: 120px !important; }
 }
+
+/* ---- Game controller: the control that has the focus, clearly marked --------------------- */
+body.pad-focus :focus { outline: 3px solid #f2c14e !important; outline-offset: 2px; }

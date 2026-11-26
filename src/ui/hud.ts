@@ -294,6 +294,7 @@ export class SailingHud {
       <div class="buttons app-row"></div>
       <label class="lang-row">${t('opts.language')} <span class="lang-slot"></span></label>
       <p class="keys">${t('opts.keys')}</p>
+      <p class="keys">${t('opts.pad')}</p>
       <p class="build">${t('opts.version')} ${__BUILD__}</p>`;
     const dir = opts.querySelector<HTMLInputElement>('[name=dir]')!;
     const speed = opts.querySelector<HTMLInputElement>('[name=speed]')!;
@@ -458,6 +459,15 @@ export class SailingHud {
   }
 
   /** Open or close the settings panel (J). */
+  get settingsOpen(): boolean {
+    return this.opts.classList.contains('open');
+  }
+
+  /** The settings panel (for moving through it with a game controller). */
+  get settingsPanel(): HTMLElement {
+    return this.opts;
+  }
+
   toggleSettings(open = !this.opts.classList.contains('open')): void {
     this.opts.classList.toggle('open', open);
   }

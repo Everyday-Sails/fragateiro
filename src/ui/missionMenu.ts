@@ -65,6 +65,11 @@ export class MissionMenu {
     return !this.overlay.hidden;
   }
 
+  /** The menu's element (for moving through it with a game controller). */
+  get element(): HTMLElement {
+    return this.overlay;
+  }
+
   /** Ports for free sailing. */
   /** Which transport routes to offer (the museum edition leaves out the long ones). */
   private routeOk: (r: { from: string; to: string }) => boolean = () => true;
@@ -254,6 +259,7 @@ export class MissionMenu {
     }
 
     const back = el('button', '', t('menu.back'));
+    back.dataset.back = '1'; // the controller's B button
     back.onclick = () => this.show();
     const go = el('button', 'go', kind === 'free' ? t('menu.setSail') : t('menu.start'));
     go.onclick = () => this.onStart(makeMission(kind, c.option, c.boat, this.boats), this.level);

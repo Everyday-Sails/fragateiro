@@ -133,6 +133,14 @@ Node 22 or newer.
 | Settings panel: boats, mission, *Sail to*, map legend, wind, time of day, camera, sound, language (starts closed) | J | ⚙ button, bottom right |
 | Time of day: sunrise, day or sunset (remembered) | | setting |
 
+**Game controller** (Xbox, or any the browser reads with the standard layout; `src/ui/gamepad.ts`):
+D-pad = rudder; right stick = sheets (up hauls in, down eases out, faster the further it is
+pushed); left stick = camera (up/down: closer/further, left/right: the next view); A = anchor;
+B = stop and open the menu; X = mode (the Muleta's net); Y = boat; ☰ = pause; ⧉ = settings.
+In the menus and the settings panel the D-pad (or the left stick) moves between the buttons, A
+presses (a list steps to its next choice), B goes back. The controller rumbles when the boat
+runs aground. The sound starts off (N or the settings turn it on).
+
 On screen: the chart alone at the top left, directions and messages large at the top centre,
 the compass with the true (blue) and apparent (green) wind, the speed with the drift beside it,
 and the sheets and rudder at the bottom centre.

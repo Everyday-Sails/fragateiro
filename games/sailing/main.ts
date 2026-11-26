@@ -12,6 +12,7 @@ import { ForceArrows } from '../../src/engine/forceArrows';
 import { Input } from '../../src/engine/input';
 import { TouchControls, isTouchDevice } from '../../src/engine/touchControls';
 import { graphicsSettings, loadGraphicsLevel, saveGraphicsLevel, type GraphicsLevel } from '../../src/engine/graphics';
+import { GamepadInput, PAD, activateFocus, moveFocus, type PadState } from '../../src/ui/gamepad';
 import { createMapView, loadCurrent, loadMapMask, type MapView } from '../../src/engine/mapView';
 import { getArea, toMapXY } from '../../src/world/area';
 import { getEdition } from '../../src/world/edition';
@@ -63,6 +64,7 @@ const arrows = new ForceArrows(scene);
 const netView = new NetView(scene);
 const windView = new WindView(scene);
 const sound = new Sound();
+const pad = new GamepadInput();
 const birds = new Birds(scene);
 const input = new Input();
 
@@ -329,6 +331,7 @@ function stepWithLand(dt: number): void {
     aground = false;
     return;
   }
+  if (!aground) pad.rumble(); // a bump on the controller as she touches
   aground = true;
   Object.assign(s, before, { u: 0, v: 0, r: 0 });
   const turn = sim.controls.rudder * PUSH_OFF_RATE * dt;
@@ -358,10 +361,13 @@ input.onPress('KeyF', () => {
   hud.setForces(arrows.visible);
 });
 
+/** The game controller this frame (null without one). */
+let padNow: PadState | null = null;
+
 function applyInput(dt: number): void {
   const c = sim.controls;
-  const left = input.held('KeyA', 'ArrowLeft');
-  const right = input.held('KeyD', 'ArrowRight');
+  const left = input.held('KeyA', 'ArrowLeft') || !!padNow?.held(PAD.Left);
+  const right = input.held('KeyD', 'ArrowRight') || !!padNow?.held(PAD.Right);
   if (touch.rudder !== null) c.rudder = touch.rudder;
   else if (left !== right) c.rudder = Math.max(-1, Math.min(1, c.rudder + (right ? 1 : -1) * RUDDER_RATE * dt));
   else c.rudder -= Math.sign(c.rudder) * Math.min(Math.abs(c.rudder), RUDDER_RETURN * dt);
@@ -373,11 +379,59 @@ function applyInput(dt: number): void {
   }
   const haul = input.held('KeyW', 'ArrowUp');
   const ease = input.held('KeyS', 'ArrowDown');
-  if (haul !== ease) {
+  // The controller's right stick: up hauls in, down eases out, faster the further it goes.
+  const stick = padNow?.ry ?? 0;
+  const rate = haul !== ease ? (ease ? 1 : -1) : stick;
+  if (rate) {
     for (const g of groupsInMode(spec, c.mode)) {
-      c.sheets[g] = Math.max(0, Math.min(1, (c.sheets[g] ?? 0.5) + (ease ? 1 : -1) * SHEET_RATE * dt));
+      c.sheets[g] = Math.max(0, Math.min(1, (c.sheets[g] ?? 0.5) + rate * SHEET_RATE * dt));
     }
   }
+}
+
+/**
+ * The game controller, once a frame. In the menus and the settings panel the D-pad (or the
+ * left stick) moves between the buttons, A presses, B goes back. Sailing: the D-pad steers,
+ * the right stick works the sheets, the left stick zooms (up and down) and changes the view
+ * (left and right); A drops or weighs the anchor, B stops the game, X changes mode (the net),
+ * Y the boat, Menu pauses, View opens the settings.
+ */
+function readPad(dt: number): void {
+  padNow = pad.poll();
+  const p = padNow;
+  if (!p) return;
+  const ui = menu.open ? menu.element : hud.settingsOpen ? hud.settingsPanel : null;
+  if (ui) {
+    padNow = null; // no steering while in a menu
+    const dx = (p.pressed(PAD.Right) ? 1 : 0) - (p.pressed(PAD.Left) ? 1 : 0) || p.flickX;
+    const dy = (p.pressed(PAD.Down) ? 1 : 0) - (p.pressed(PAD.Up) ? 1 : 0) || p.flickY;
+    if (dx || dy) moveFocus(ui, dx, dy);
+    if (p.pressed(PAD.A)) activateFocus(ui);
+    if (p.pressed(PAD.B)) {
+      if (ui === hud.settingsPanel) hud.toggleSettings(false);
+      else ui.querySelector<HTMLElement>('[data-back]')?.click();
+    }
+    if (p.pressed(PAD.View) && ui === hud.settingsPanel) hud.toggleSettings(false);
+    return;
+  }
+  if (p.ly) cameraRig.setDistance(cameraRig.distance * Math.exp(p.ly * 1.5 * dt));
+  if (p.flickX) {
+    const views = CAMERA_VIEWS.map((v) => v.id);
+    const i = views.indexOf(cameraRig.view);
+    cameraRig.setView(views[(i + p.flickX + views.length) % views.length]);
+  }
+  if (p.pressed(PAD.A)) toggleAnchor();
+  if (p.pressed(PAD.B)) {
+    paused = true;
+    menu.show();
+  }
+  if (p.pressed(PAD.X)) cycleMode();
+  if (p.pressed(PAD.Y) && !requiredBoat) {
+    const i = AREA_BOATS.findIndex((b) => b.id === wanted);
+    void switchBoat(AREA_BOATS[(i + 1) % AREA_BOATS.length].id);
+  }
+  if (p.pressed(PAD.Menu)) paused = !paused;
+  if (p.pressed(PAD.View)) hud.toggleSettings(true);
 }
 
 const courseView = new CourseView(scene);
@@ -873,6 +927,7 @@ async function main(): Promise<void> {
 
   engine.runRenderLoop(() => {
     const dt = Math.min(engine.getDeltaTime() / 1000, 0.1);
+    readPad(dt);
     if (!paused) {
       applyInput(dt);
       sim.controls.balanced = level !== 'hard';
